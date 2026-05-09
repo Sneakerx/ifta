@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ifta-overdrive"
+version = "0.1.0"
+description = "Iterative Fourier transform algorithm with the Overdrive variant"
+authors = [{name = "Marc Bernau"}]
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "matplotlib>=3.7",
+    "pillow>=9.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7",
+    "pytest-cov",
+    "tqdm",
+]
+
+[tool.setuptools.packages.find]
+include = ["ifta*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

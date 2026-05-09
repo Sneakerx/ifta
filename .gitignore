@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.so
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data and results (add your own)
+data/
+results/
+*.npy
+*.npz
+
+# LaTeX
+paper/*.aux
+paper/*.bbl
+paper/*.blg
+paper/*.log
+paper/*.out
+paper/*.toc
+paper/*.synctex.gz
+paper/*.fdb_latexmk
+paper/*.fls
+paper/*.pdf
+!paper/figures/*.pdf
