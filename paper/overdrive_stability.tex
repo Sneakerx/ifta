@@ -52,10 +52,10 @@ contraction rate of GS at the limit cycle. The iteration is stable for every
 $\beta\in(0,1)$. The expected steady-state log-residual is
 $\mathbb{E}\{(\delta u_\infty)^2\}=\mathrm{Var}\{\eta\}/(1-(\beta-c)^2)$,
 which is minimized at $\beta=c$. The natural Lyapunov candidate for these
-multiplicative rules is the log-spectral residual (or Itakura--Saito
-divergence), not the L\textsuperscript{2} hologram-plane error; this resolves
-the apparent paradox that the hologram-plane correction vector can grow
-transiently while the image-plane error decreases. On a benchmark of ten
+multiplicative rules is the log-spectral distance (LSD), not the
+L\textsuperscript{2} hologram-plane error; this resolves the apparent
+paradox that the hologram-plane correction vector can grow transiently
+while the image-plane error decreases. On a benchmark of ten
 natural grayscale images, Overdrive at $\beta=0.7$ yields a mean PSNR of
 $32.19$~dB after twenty iterations, an improvement of $7.43$~dB over plain GS
 and $5.41$~dB over the Fienup amplitude variant. A reference Python
@@ -81,7 +81,7 @@ irreducible synthesis floor.
 
 This distinction matters for what one can hope to prove. The
 Gerchberg--Saxton algorithm \cite{Gerchberg1972} and its many descendants
-\cite{Fienup1978,Fienup1980,Prongue1992,Bengtsson1994,Liu2002} solve the
+\cite{Fienup1978,Fienup1980,Prongue1992,Bengtsson1998,Liu2006} solve the
 kinoform synthesis problem by alternating Fourier projections and remain the
 workhorse of real-time hologram generation on phase-only spatial light
 modulators. Modern phase-retrieval methods --- Wirtinger Flow
@@ -290,14 +290,20 @@ even though the algorithm converges in the image plane. This is not a
 contradiction; it is a sign that the L\textsuperscript{2} hologram-plane error
 is the wrong Lyapunov candidate for a multiplicative rule.
 
-The natural candidate is the log-spectral residual
+The natural candidate is the log-spectral distance (LSD)
 \begin{equation}
   V_k \;:=\; \sum_{(u,v)}\biggl[\ln\frac{\lvert G_k(u,v)\rvert}{\lvert F(u,v)\rvert}\biggr]^2
        \;=\; \sum v_k^2,
   \label{eq:lyap}
 \end{equation}
-or equivalently the Itakura--Saito divergence between target and reconstructed
-intensities. Decomposing $v_k=v^*+\delta v_k$ around the limit cycle and using
+quadratic in the log-amplitude residual. A closely related quantity is the
+Itakura--Saito divergence
+$\mathrm{IS}(\F^2,\Gk^2) = \sum [\F^2/\Gk^2 - \ln(\F^2/\Gk^2) - 1]$,
+which agrees with $V_k$ to second order in $v_k$ around $v_k=0$ but diverges
+from it for large residuals; both are valid Lyapunov candidates for log-domain
+multiplicative iterations. We use $V_k$ throughout because it is exactly the
+quantity our linearization is quadratic in. Decomposing $v_k=v^*+\delta v_k$
+around the limit cycle and using
 \eqref{eq:closed_loop}, the transient component decays geometrically:
 \begin{equation}
   \mathbb{E}\{(\delta v_{k+1})^2\}\big/\mathbb{E}\{(\delta v_k)^2\}
@@ -308,10 +314,11 @@ $V_\infty\geq 0$, the constant offset $\sum (v^*)^2$ plus the steady-state
 variance from \eqref{eq:ssresid}. The synthesis floor is precisely this
 $V_\infty$. The ``apparent paradox'' of a growing L\textsuperscript{2}
 hologram-plane correction vector is thus resolved: monotonicity holds for
-the transient part of the log-spectral metric, which is the natural metric
-for a multiplicative iteration. This is consistent with classical results in
-spectral estimation, where Itakura--Saito has long been the preferred
-dissimilarity measure for multiplicative spectral updates.
+the transient part of the LSD, which is the natural metric for a
+multiplicative iteration. This is consistent with classical results in
+non-negative matrix factorization and spectral estimation, where the
+Itakura--Saito divergence is the canonical dissimilarity measure for
+multiplicative spectral updates \cite{LeeSeung2001,Fevotte2009}.
 
 % =====================================================================
 \section{The synthesis floor}\label{sec:stochastic}
@@ -352,7 +359,9 @@ $\beta$ trades off transient speed against asymptotic synthesis quality.
 We benchmark Overdrive at three values of $\beta$ against plain GS,
 Fienup--Amplitude (with $\beta_{\mathrm{FA}}=0.5$), and Bengtsson (with
 $\beta_{\mathrm{BE}}=0.35$) on ten natural grayscale images of resolution
-$256\times 256$ from the dissertation's image set ``Klasse~1''. All algorithms
+$256\times 256$. The image set is the ``Klasse~1'' subset used in
+\cite{Bernau2012}, drawn from the LIVE Image Quality Assessment Database
+\cite{Sheikh2005} and converted to grayscale. All algorithms
 share the same random initial phase per image (seeded), run for 20 iterations,
 and apply the variant rule from iteration~4 onward (three GS warm-up steps).
 Implementation is in NumPy 2.4 and is released alongside this paper.
@@ -369,7 +378,7 @@ $\beta=0.7$.}
 \toprule
 Algorithm                 & mean    & std    & min     & max     \\\midrule
 GS \cite{Gerchberg1972}                       & 24.76   & 1.43   & 22.67   & 27.90   \\
-Bengtsson \cite{Bengtsson1994} ($\beta=0.35$) & 23.27   & 1.57   & 20.91   & 26.76   \\
+Bengtsson \cite{Bengtsson1998} ($\beta=0.35$) & 23.27   & 1.57   & 20.91   & 26.76   \\
 Fienup--Amplitude \cite{Fienup1978} ($\beta=0.5$) & 26.78   & 1.44   & 24.69   & 29.94   \\
 Overdrive ($\beta=0.5$)   & 30.44   & 1.43   & 28.35   & 33.54   \\
 \textbf{Overdrive ($\beta=0.7$)} & \textbf{32.19} & 1.45 & 30.06 & 35.33 \\
@@ -426,15 +435,22 @@ suffices.
 % =====================================================================
 
 \paragraph{Relation to other multiplicative IFTA rules.} The Bengtsson rule
-\cite{Bengtsson1994}, $\Gkp = \Gkm\,(\F/\Gk)^{\beta}$, lacks the
+\cite{Bengtsson1998}, $\Gkp = \Gkm\,(\F/\Gk)^{\beta}$, lacks the
 $\F^{\,2-\beta}/\Gk$ scaling of Overdrive and is therefore not dimensionally
-balanced. In log coordinates it becomes
-$u_k = u_{k-1} - \beta v_k$, an integrator (pole at $z=1$) rather than a
-filter --- which explains its empirical instability on natural images
-(Table~\ref{tab:results}: Bengtsson is \emph{worse} than plain GS). The
-Prongu\'e rule \cite{Prongue1992} is the special case $\beta=1$ of Overdrive
-and lies on the stability boundary; it works for sparse point patterns but
-not for grayscale images.
+balanced. In log coordinates it becomes $u_k = u_{k-1} - \beta v_k$. Treating
+$v_k$ as exogenous, this open-loop response is an accumulator (open-loop pole
+at $z=1$); closing the loop through the GS linearization
+\eqref{eq:gs_linearization} gives a closed-loop pole at $z = 1-\beta c$, which
+is in $(0,1)$ for $\beta,c\in(0,1)$. The rule is therefore stable, not
+unstable: Table~\ref{tab:results} confirms it converges. Its empirical
+degradation relative to GS on grayscale targets (23.27 vs.\ 24.76~dB) reflects
+two effects that the linearization \emph{cannot} compare across rules: a
+slower closed-loop pole at typical $\beta\!\ll\!1$, and a different noise
+process $\eta_k$ at a different limit cycle. A direct numerical comparison of
+the synthesis floors of Bengtsson and Overdrive, controlling for $\eta$, is
+left to future work. The Prongu\'e rule \cite{Prongue1992} is the special
+case $\beta=1$ of Overdrive and lies on the stability boundary; it works for
+sparse point patterns but degrades on grayscale images.
 
 \paragraph{A different problem: phase retrieval.} Wirtinger Flow
 \cite{Candes2014} and randomly initialized gradient descent \cite{Chen2018}
@@ -457,13 +473,16 @@ hardware. They sidestep rather than solve the analytical question studied
 here: \emph{how does the synthesis floor of a classical iterative
 algorithm depend on its parameters?}.
 
-\paragraph{Relation to other multiplicative IFTA rules, continued.} Our
-synthesis-floor formula \eqref{eq:ssresid} also illuminates why the Bengtsson
-rule degrades on grayscale targets: with a closed-loop pole at $z=1-c\beta$
-and no $\F^{2-\beta}$ scaling to balance dimensions, the noise term $\eta_k$
-is amplified rather than filtered. The Overdrive's exponent $2-\beta$ is
-exactly the gain that keeps the closed loop stable while preserving the
-fixed-point property in the (hypothetical) zero-residual limit.
+\paragraph{The role of the dimensional balance.} The exponent $2-\beta$ in
+\eqref{eq:overdrive} serves two purposes. First, it ensures that an exact
+target $\Gk=\F$ would be a fixed point of the iteration (Section~\ref{sec:rule}),
+which is what makes the log-domain residuals $u_k,v_k$ vanish at a hypothetical
+zero-residual limit. Second, it produces a closed-loop pole that depends on
+$\beta-c$ rather than on the steeper $1-\beta c$ slope of Bengtsson, so that
+the optimum $\beta^*=c$ falls in the interior of $(0,1)$ and the noise gain
+is unity rather than $\beta$. Whether this translates to a smaller absolute
+floor than Bengtsson depends on the (rule-dependent) noise variance, and is
+an empirical question --- see Section~\ref{sec:numerics}.
 
 \paragraph{Limitations.} The linearization \eqref{eq:gs_linearization}
 captures only the local behaviour of the GS projection at the limit cycle;
