@@ -28,8 +28,8 @@
 \newcommand{\Gkm}{\lvert G_{k-1}'\rvert}
 \newcommand{\Gkp}{\lvert G_k'\rvert}
 
-\title{Stability and convergence of the Overdrive variant\\[2pt]
-       of the iterative Fourier transform algorithm}
+\title{Stability of the Overdrive variant of the iterative\\[2pt]
+       Fourier transform algorithm for kinoform synthesis}
 \author{Marc Bernau\thanks{\texttt{bernau.marc@googlemail.com}}}
 \date{Preprint, May 2026}
 
@@ -38,62 +38,78 @@
 
 \begin{abstract}
 The Overdrive update rule is a multiplicative variant of the iterative Fourier
-transform algorithm (IFTA) for phase-only hologram synthesis, originally
-proposed in 2007. While it consistently outperforms Gerchberg--Saxton (GS) and
-related additive schemes in practice, no analytical guarantee for its
-convergence has been available, and no principled rule for its mixing parameter
-$\beta$ existed. We show that the Overdrive rule is, in log-amplitude
-coordinates, a first-order infinite impulse response (IIR) filter with pole
-at $z=\beta$, driven by the local image-plane error. Linearizing the closed
-iteration around the fixed point yields the closed-loop pole $z=\beta-c$, where
-$c\in[0,1]$ is the local contraction rate of the GS projection. The algorithm
-is therefore stable for all $\beta\in(0,1)$ and converges fastest when
-$\beta\approx c$, suggesting an adaptive rule that mirrors the dissertation's
-adaptive Fienup amplitude rule but operates in the log-spectral domain.
-We further argue that the natural Lyapunov function for multiplicative IFTA
-rules is the log-spectral residual (or, equivalently, the Itakura--Saito
-divergence), not the L\textsuperscript{2} hologram-plane error. This resolves
-an apparent paradox: in numerical experiments the L\textsuperscript{2} error
-in the hologram plane sometimes grows transiently while the algorithm still
-converges. On a benchmark of ten natural grayscale images, Overdrive at
-$\beta=0.7$ yields a mean PSNR of $32.19$~dB after twenty iterations, an
-improvement of $7.43$~dB over plain GS and $5.41$~dB over the Fienup amplitude
-variant. A reference Python implementation is provided.
+transform algorithm (IFTA) for phase-only kinoform synthesis, introduced in
+2007. Unlike phase retrieval, kinoform synthesis is an \emph{approximation}
+problem: a phase-only solution that exactly reproduces a desired grayscale
+intensity in the Fourier plane generally does not exist. Iterative algorithms
+therefore do not converge to the target but to a limit cycle whose distance
+to the target is the irreducible synthesis floor. We give an analytical
+characterization of this floor for Overdrive. In log-amplitude coordinates
+the rule is a first-order infinite impulse response (IIR) filter with pole at
+$z=\beta$; closing the loop through the Gerchberg--Saxton (GS) projection
+yields the closed-loop pole $z=\beta-c$, where $c\in[0,1]$ is the local
+contraction rate of GS at the limit cycle. The iteration is stable for every
+$\beta\in(0,1)$. The expected steady-state log-residual is
+$\mathbb{E}\{(\delta u_\infty)^2\}=\mathrm{Var}\{\eta\}/(1-(\beta-c)^2)$,
+which is minimized at $\beta=c$. The natural Lyapunov candidate for these
+multiplicative rules is the log-spectral residual (or Itakura--Saito
+divergence), not the L\textsuperscript{2} hologram-plane error; this resolves
+the apparent paradox that the hologram-plane correction vector can grow
+transiently while the image-plane error decreases. On a benchmark of ten
+natural grayscale images, Overdrive at $\beta=0.7$ yields a mean PSNR of
+$32.19$~dB after twenty iterations, an improvement of $7.43$~dB over plain GS
+and $5.41$~dB over the Fienup amplitude variant. A reference Python
+implementation is provided.
 \end{abstract}
 
 % =====================================================================
 \section{Introduction}
 % =====================================================================
 
-Phase retrieval --- recovering a phase pattern that, after free-space
-propagation, reproduces a desired intensity --- is a long-studied problem in
-diffractive optics. The Gerchberg--Saxton algorithm \cite{Gerchberg1972} and its
-many descendants \cite{Fienup1978,Fienup1980,Prongue1992,Bengtsson1994,Liu2002}
-solve it by alternating Fourier projections and remain the workhorse of
-real-time hologram synthesis on phase-only spatial light modulators.
+Two superficially similar problems are routinely conflated in the literature.
+\emph{Phase retrieval} starts from a known intensity that arose from some
+unknown phase, and asks to recover that phase: the true solution exists by
+construction. \emph{Kinoform synthesis} \cite{Lesem1969,Soifer1997} starts
+from a desired grayscale intensity and asks to design a phase pattern,
+modulating a uniform-amplitude wave, whose Fourier transform reproduces it.
+For grayscale targets such an exact phase pattern generally does not exist:
+the constraint sets in the two planes do not intersect, the problem is
+nonconvex, many-to-one, and saturated with symmetries. Any iterative
+algorithm therefore terminates not at a true solution but at a \emph{limit
+cycle of alternating projections} whose distance to the target is the
+irreducible synthesis floor.
 
-Recent years have seen substantial advances on either side of this classical
-family. On the theoretical end, Wirtinger Flow \cite{Candes2014} and
-randomly-initialized gradient descent \cite{Chen2018} provide the first global
-convergence guarantees for the non-convex phase retrieval problem. On the
-practical end, deep neural networks \cite{Zheng2021,Sun2022,Zhu2025} have
-pushed real-time generation by orders of magnitude, at the cost of training
-data and dedicated inference hardware.
+This distinction matters for what one can hope to prove. The
+Gerchberg--Saxton algorithm \cite{Gerchberg1972} and its many descendants
+\cite{Fienup1978,Fienup1980,Prongue1992,Bengtsson1994,Liu2002} solve the
+kinoform synthesis problem by alternating Fourier projections and remain the
+workhorse of real-time hologram generation on phase-only spatial light
+modulators. Modern phase-retrieval methods --- Wirtinger Flow
+\cite{Candes2014} and randomly-initialized gradient descent \cite{Chen2018}
+--- give global convergence guarantees, but those guarantees apply to a
+problem in which a true solution exists; they do not transfer to the kinoform
+case, where no such solution does. Deep-learning approaches
+\cite{Zheng2021,Sun2022,Zhu2025} sidestep iteration altogether at the cost of
+training data and inference hardware. For real-time video projection on
+commodity hardware --- our motivating application --- the classical
+multiplicative IFTA family remains attractive: nearly as cheap as GS per
+iteration, no training, convergence in about a dozen FFT cycles. The
+question for these algorithms is therefore not ``do they reach the target?''
+(no) but ``how close to the limit cycle do they settle, and how is the
+synthesis floor controlled by the algorithm parameter?''.
 
-For applications that must run on commodity hardware --- in our case,
-real-time video projection through a phase-only modulator --- the multiplicative
-GS variants remain attractive: they are nearly as cheap as GS per iteration,
-require no training, and converge in about a dozen FFT cycles. Among them,
-the \emph{Overdrive} rule introduced in \cite{Bernau2007} and analyzed in
-\cite{Bernau2012}
+Among the multiplicative IFTA variants, the \emph{Overdrive} rule introduced
+in \cite{Bernau2007} and analyzed empirically in \cite{Bernau2012}
 \begin{equation}
   \Gkp \;=\; \Gkm^{\beta}\;\frac{\F^{\,2-\beta}}{\Gk}, \qquad \beta\in(0,1),
   \label{eq:overdrive}
 \end{equation}
-empirically yields the best PSNR after a fixed iteration budget, but its
-stability has only been shown empirically. The dissertation
-\cite[Sec.~4.4]{Bernau2012} states that it ``cannot be shown analytically from
-the geometric vector argument''. Two issues stand in the way:
+consistently yields the lowest synthesis floor of any multiplicative
+variant we tested, but its stability and the size of that floor have so far
+been demonstrated only by simulation. The dissertation
+\cite[Sec.~4.4]{Bernau2012} states that stability ``cannot be shown
+analytically from the geometric vector argument''. Two issues stand in the
+way:
 \begin{enumerate}
   \item In the hologram plane, the L\textsuperscript{2} norm of the correction
         vector is generally \emph{larger} than the previous error, so the
@@ -102,17 +118,18 @@ the geometric vector argument''. Two issues stand in the way:
         cosine-rule argument used by Fienup \cite{Fienup1980} does not apply.
 \end{enumerate}
 
-In this note we resolve both issues by working in log-amplitudes. Section~\ref{sec:rule}
-restates the Overdrive rule and its
-series expansion. Section~\ref{sec:log} shows that taking logarithms turns the
-update into a first-order linear difference equation, exposing an IIR-filter
-structure with explicit pole at $z=\beta$. Section~\ref{sec:stability}
-linearizes the closed iteration and gives the pole-based stability condition
-and the optimal $\beta$. Section~\ref{sec:lyapunov} argues that the right
-Lyapunov candidate is the log-spectral residual.
-Section~\ref{sec:stochastic} predicts the steady-state residual variance.
-Section~\ref{sec:numerics} validates the predictions on a benchmark of natural
-grayscale images.
+In this note we resolve both issues by working in log-amplitudes around the
+algorithmic limit cycle, not around an idealized target solution.
+Section~\ref{sec:rule} restates the Overdrive rule and its series expansion.
+Section~\ref{sec:log} shows that taking logarithms turns the update into a
+first-order linear difference equation, exposing an IIR-filter structure with
+explicit pole at $z=\beta$. Section~\ref{sec:stability} linearizes the closed
+iteration around the limit cycle and gives the pole-based stability
+condition and the locally optimal $\beta$. Section~\ref{sec:lyapunov}
+identifies the log-spectral residual as the right Lyapunov candidate;
+Section~\ref{sec:stochastic} predicts the steady-state synthesis floor.
+Section~\ref{sec:numerics} validates the predictions on a benchmark of
+natural grayscale images.
 
 % =====================================================================
 \section{The Overdrive rule}\label{sec:rule}
@@ -148,12 +165,19 @@ recent correction weighted unity and older corrections weighted $\beta,
 \beta^2,\ldots$.
 
 A subtle but important property of \eqref{eq:product} is the symmetry of the
-exponents. At a fixed point $\Gk=\F$ for all~$k$, the numerator and
-denominator exponents sum to the same value:
-$\sum_{k=0}^{N}\beta^{k}=\sum_{k=0}^{N}\beta^{N-k}$. Hence the product is
-exactly one and $\Gkp_N=\F$, so the fixed point is preserved. The dimensional
-balance was not an aesthetic choice; it is what guarantees the fixed-point
-property.
+exponents. \emph{If} a configuration $\Gk=\F$ for all~$k$ were attainable,
+the numerator and denominator exponents would sum to the same value,
+$\sum_{k=0}^{N}\beta^{k}=\sum_{k=0}^{N}\beta^{N-k}$, the product would equal
+one, and we would have $\Gkp_N=\F$ --- so an exact target would be a fixed
+point of the rule. The dimensional balance is what guarantees this property;
+the exponent $2-\beta$ in \eqref{eq:overdrive} was chosen for exactly this
+reason.
+
+In a real kinoform problem no such configuration exists: the alternating
+projections do not produce $\Gk=\F$ but instead settle at a non-zero limit
+$\Gk\to\Gk_{\!\infty}\neq\F$. We retain the term ``fixed point'' below in
+the dynamical-systems sense (the limit point of the iteration map), with
+the understanding that this point lies at a positive distance from $\F$.
 
 % =====================================================================
 \section{Log-domain analysis}\label{sec:log}
@@ -198,19 +222,25 @@ Equation \eqref{eq:iir} treats $v_k$ as an exogenous input. In the actual
 algorithm, $v_k$ is determined by the previous virtual amplitude through the
 Fourier transform, hologram-plane phase-only constraint, and inverse Fourier
 transform --- the standard GS step. Let $\mathcal{P}_{\mathrm{GS}}$ denote
-that combined operator, restricted to amplitudes. Linearizing around a fixed
-point on which $\Gk=\F$, the small-perturbation response is
+that combined operator, restricted to amplitudes. Let $\theta^*$ be the
+algorithmic limit cycle and $\Gk_{\!\infty}=\lvert\mathcal{F}\{u\,e^{j\theta^*}\}\rvert$
+the corresponding image-plane amplitude. Define perturbations
+$\delta u_k:=u_k - u^*$ and $\delta v_k:=v_k - v^*$ around this limit cycle,
+where $v^* = \ln(\Gk_{\!\infty}/\F)$ is non-zero (the synthesis floor) and
+$u^*$ is the corresponding fixed log-perturbation of the virtual amplitude.
+The local linearization of $\mathcal{P}_{\mathrm{GS}}$ then gives
 \begin{equation}
-  v_k \;\approx\; c\,u_{k-1} + \eta_k,
+  \delta v_k \;\approx\; c\,\delta u_{k-1} + \eta_k,
   \label{eq:gs_linearization}
 \end{equation}
 where $c\in[0,1]$ is the local contraction constant of $\mathcal{P}_{\mathrm{GS}}$
-(the standard GS proof \cite{Gerchberg1972} gives $c\le 1$) and $\eta_k$ is a
-zero-mean noise term that captures the higher-order effect of phase
-re-shuffling and the residual error model from \cite{Bernau2012}. Substituting
-into \eqref{eq:iir},
+at $\theta^*$ (the standard GS proof \cite{Gerchberg1972} gives $c\le 1$
+globally) and $\eta_k$ is a zero-mean stochastic term that captures the
+higher-order effect of phase re-shuffling and the residual error model from
+\cite{Bernau2012}. Substituting into \eqref{eq:iir} and noting that the
+constant offset $v^*$ cancels in the linear part,
 \begin{equation}
-  u_k \;=\; (\beta - c)\,u_{k-1} - \eta_k.
+  \delta u_k \;=\; (\beta - c)\,\delta u_{k-1} - \eta_k.
   \label{eq:closed_loop}
 \end{equation}
 The closed-loop pole therefore sits at $z=\beta - c$. We obtain three immediate
@@ -227,23 +257,26 @@ Since $c\in[0,1]$, every $\beta\in(0,1)$ satisfies \eqref{eq:stab}: the
 empirical observation of \cite{Bernau2012} that ``$\beta$ should be chosen
 strictly between zero and one'' is recovered as a theorem.
 
-\paragraph{Optimal $\beta$.} The closed-loop pole $z=\beta-c$ has minimum
-modulus when
+\paragraph{Locally optimal $\beta$.} The closed-loop pole $z=\beta-c$ has
+minimum modulus when
 \begin{equation}
   \boxed{\;\beta^{\,*} = c.\;}
 \end{equation}
-At this value the response is dead-beat-like at first order: a single
-iteration would already drive the linearized residual to zero in the absence
-of noise. Of course $c$ depends on the operating point, so $\beta^{*}$ is a
-local property; the practical implication is the same as for the adaptive
-Fienup amplitude rule of \cite{Bernau2012}: $\beta$ should be \emph{decreased
-toward zero as the reconstruction approaches the target}, and increased toward
-one when the residual is large.
+At this value the linearized response is dead-beat-like at first order. Note
+that this minimizes the \emph{rate at which transient perturbations decay
+back to the limit cycle}; it does not minimize the synthesis floor itself,
+which is governed by Section~\ref{sec:stochastic} below. Because $c$ depends
+on the operating point, $\beta^*$ is a local property of the limit cycle;
+the practical implication parallels the adaptive Fienup amplitude rule of
+\cite{Bernau2012}: $\beta$ should be increased toward one when the residual
+is large and decreased as the iteration approaches its limit cycle.
 
-\paragraph{Geometric decay rate.} For fixed $\beta$, the noise-free transient
-decays geometrically as $\lvert u_N\rvert\sim\lvert\beta-c\rvert^N$. This
-predicts a straight line on a log-residual-versus-iteration plot, with slope
-$\log\lvert\beta-c\rvert$. We test this in Section~\ref{sec:numerics}.
+\paragraph{Geometric transient decay.} For fixed $\beta$ and noise-free
+\eqref{eq:closed_loop}, the transient decays geometrically as
+$\lvert\delta u_N\rvert\sim\lvert\beta-c\rvert^N$. The driving noise $\eta_k$
+prevents the residual from going to zero --- it instead settles at the floor
+of Section~\ref{sec:stochastic}. We test both predictions in
+Section~\ref{sec:numerics}.
 
 % =====================================================================
 \section{Lyapunov function: log-spectral residual}\label{sec:lyapunov}
@@ -264,37 +297,53 @@ The natural candidate is the log-spectral residual
   \label{eq:lyap}
 \end{equation}
 or equivalently the Itakura--Saito divergence between target and reconstructed
-intensities. From the closed-loop equation \eqref{eq:closed_loop},
+intensities. Decomposing $v_k=v^*+\delta v_k$ around the limit cycle and using
+\eqref{eq:closed_loop}, the transient component decays geometrically:
 \begin{equation}
-  \mathbb{E}\{V_{k+1}\}/\mathbb{E}\{V_k\}\;\to\;(\beta-c)^2 \;<\; 1,
+  \mathbb{E}\{(\delta v_{k+1})^2\}\big/\mathbb{E}\{(\delta v_k)^2\}
+  \;\to\;(\beta-c)^2 \;<\; 1.
 \end{equation}
-so $V_k$ decays monotonically in expectation, at the rate predicted by the
-pole location. The ``apparent paradox'' of growing L\textsuperscript{2} error
-is thus resolved: monotonicity holds in the log-spectral metric, which is the
-natural metric for a multiplicative iteration. This is consistent with classical
-results in spectral estimation, where Itakura--Saito has long been the
-preferred dissimilarity measure for multiplicative spectral updates.
+The full quantity $V_k$ does \emph{not} decay to zero --- it settles at
+$V_\infty\geq 0$, the constant offset $\sum (v^*)^2$ plus the steady-state
+variance from \eqref{eq:ssresid}. The synthesis floor is precisely this
+$V_\infty$. The ``apparent paradox'' of a growing L\textsuperscript{2}
+hologram-plane correction vector is thus resolved: monotonicity holds for
+the transient part of the log-spectral metric, which is the natural metric
+for a multiplicative iteration. This is consistent with classical results in
+spectral estimation, where Itakura--Saito has long been the preferred
+dissimilarity measure for multiplicative spectral updates.
 
 % =====================================================================
-\section{Stochastic convergence and steady-state error}\label{sec:stochastic}
+\section{The synthesis floor}\label{sec:stochastic}
 % =====================================================================
 
-Squaring \eqref{eq:closed_loop} and taking expectations, assuming $\eta_k$
-zero-mean and uncorrelated with $u_{k-1}$,
+Because no exact phase-only kinoform exists for a generic grayscale target,
+the algorithm settles at a non-trivial limit cycle: this is the central
+quantity to characterize. Squaring \eqref{eq:closed_loop} and taking
+expectations, assuming $\eta_k$ zero-mean and uncorrelated with
+$\delta u_{k-1}$,
 \begin{equation}
-  \mathbb{E}\{u_k^2\} \;=\; (\beta - c)^2\,\mathbb{E}\{u_{k-1}^2\}
-                          + \mathrm{Var}\{\eta_k\}.
+  \mathbb{E}\{(\delta u_k)^2\}
+    \;=\; (\beta - c)^2\,\mathbb{E}\{(\delta u_{k-1})^2\}
+        + \mathrm{Var}\{\eta_k\}.
 \end{equation}
-At steady state,
+Solving for the steady state gives the \emph{synthesis floor formula},
 \begin{equation}
-  \mathbb{E}\{u_\infty^2\} \;=\; \frac{\mathrm{Var}\{\eta\}}{1 - (\beta - c)^2}.
+  \boxed{\;
+    \mathbb{E}\{(\delta u_\infty)^2\}
+      \;=\; \frac{\mathrm{Var}\{\eta\}}{1 - (\beta - c)^2}.\;}
   \label{eq:ssresid}
 \end{equation}
-The minimum residual is achieved at $\beta=c$, giving
-$\mathbb{E}\{u_\infty^2\}=\mathrm{Var}\{\eta\}$. Any deviation from
-$\beta^*=c$ increases the steady-state residual quadratically.
-Equation~\eqref{eq:ssresid} is the multiplicative analogue of the residual
-variance formula for a first-order linear filter driven by white noise.
+This is the multiplicative analogue of the residual-variance formula for a
+first-order linear filter driven by white noise, but its interpretation in
+the kinoform context is more pointed: the right-hand side is an irreducible
+floor, set by the noise process $\eta_k$ that captures the geometric
+mismatch between the two non-intersecting constraint sets, and amplified by
+the closed-loop transfer function. The floor is minimized at $\beta=c$,
+where it reduces to $\mathrm{Var}\{\eta\}$ alone. Any deviation from
+$\beta^*=c$ inflates the floor quadratically. This is the analytical
+quantity \cite{Bernau2012} did not have: a closed-form prediction for how
+$\beta$ trades off transient speed against asymptotic synthesis quality.
 
 % =====================================================================
 \section{Numerical validation}\label{sec:numerics}
@@ -343,10 +392,11 @@ optimal value is consistently larger.
   \includegraphics[width=\linewidth]{figures/benchmark.png}
   \caption{(left) PSNR vs.\ iteration, averaged over 10 natural grayscale
   images; (right) log-spectral residual \eqref{eq:lyap}, the Lyapunov
-  candidate. The geometric decay slopes match the pole-location prediction
-  $\lvert\beta-c\rvert$ with $c\approx 0.7$ on this image class. The
-  $\beta=0.7$ Overdrive curve has the steepest slope and lowest steady-state
-  residual, consistent with $\beta^{*}=c$.}
+  candidate. Each curve approaches a non-zero plateau --- the kinoform
+  synthesis floor of \eqref{eq:ssresid}. The $\beta=0.7$ Overdrive curve has
+  the steepest transient slope and the lowest plateau, consistent with the
+  prediction that an interior $\beta\in(0,1)$ minimizes both the closed-loop
+  pole modulus and the steady-state floor.}
   \label{fig:bench}
 \end{figure}
 
@@ -386,38 +436,60 @@ Prongu\'e rule \cite{Prongue1992} is the special case $\beta=1$ of Overdrive
 and lies on the stability boundary; it works for sparse point patterns but
 not for grayscale images.
 
-\paragraph{Relation to modern phase retrieval.} Wirtinger Flow
+\paragraph{A different problem: phase retrieval.} Wirtinger Flow
 \cite{Candes2014} and randomly initialized gradient descent \cite{Chen2018}
-provide stronger global guarantees but at higher per-iteration cost and with
-specific assumptions on the measurement matrix. For coded-diffraction or
-Gaussian-design phase retrieval they are state of the art. Deep learning
-approaches \cite{Zheng2021,Sun2022,Zhu2025} are orders of magnitude faster
-than classical iteration but require training data and dedicated inference
-hardware. The contribution here is complementary: a sharpened analysis and a
-practical adaptive rule for the multiplicative IFTA family, which remains
-attractive in commodity-hardware real-time settings.
+provide global convergence guarantees for the non-convex \emph{phase
+retrieval} problem, in which a true unknown signal generated the observed
+intensity. Their guarantees rely critically on the existence of that true
+signal and on assumptions on the measurement matrix (Gaussian, coded
+diffraction). They do not transfer to kinoform synthesis, where no
+phase-only solution exists in general; what those algorithms would
+``recover'' is the closest approximate signal under their loss, which is a
+different quantity from the limit cycle of an alternating-projection
+scheme. The two literatures should not be conflated.
+
+\paragraph{A different paradigm: deep learning.} Convolutional and
+transformer-based phase generators \cite{Zheng2021,Sun2022,Zhu2025} achieve
+near-real-time performance by replacing iteration with one trained network
+inference. They are class-specific (the network must be trained on a
+distribution that resembles the target images) and require dedicated
+hardware. They sidestep rather than solve the analytical question studied
+here: \emph{how does the synthesis floor of a classical iterative
+algorithm depend on its parameters?}.
+
+\paragraph{Relation to other multiplicative IFTA rules, continued.} Our
+synthesis-floor formula \eqref{eq:ssresid} also illuminates why the Bengtsson
+rule degrades on grayscale targets: with a closed-loop pole at $z=1-c\beta$
+and no $\F^{2-\beta}$ scaling to balance dimensions, the noise term $\eta_k$
+is amplified rather than filtered. The Overdrive's exponent $2-\beta$ is
+exactly the gain that keeps the closed loop stable while preserving the
+fixed-point property in the (hypothetical) zero-residual limit.
 
 \paragraph{Limitations.} The linearization \eqref{eq:gs_linearization}
-captures only the local behaviour of the GS projection; far from the fixed
-point the contraction constant $c$ is itself a function of the residual and
-the analysis becomes only approximate. Nevertheless, the steady-state
-prediction \eqref{eq:ssresid} agrees with the numerical residuals to within a
-constant factor, suggesting the linearization is informative through the
-entire convergence regime in practice.
+captures only the local behaviour of the GS projection at the limit cycle;
+far from it, $c$ varies and the analysis is only approximate. The
+quantitative agreement of \eqref{eq:ssresid} with the numerical residuals
+(Section~\ref{sec:numerics}) is therefore a useful guide to the \emph{ranking}
+of $\beta$ values rather than to absolute floor prediction.
 
 % =====================================================================
 \section{Conclusion}\label{sec:conclusion}
 % =====================================================================
 
-The Overdrive update rule is, in log-amplitude coordinates, a first-order
-IIR filter with pole at $z=\beta$. Closing the loop through the GS projection
-shifts the pole to $z=\beta-c$, where $c$ is the local contraction constant of
-GS. The algorithm is stable for all $\beta\in(0,1)$ and converges fastest at
-$\beta=c$. The L\textsuperscript{2} hologram-plane error is not the right
-Lyapunov function for this multiplicative rule; the log-spectral residual is.
-Numerical experiments on ten natural grayscale images confirm the prediction
-of an interior optimum and show a $7.4$~dB PSNR advantage of Overdrive at
-$\beta=0.7$ over plain Gerchberg--Saxton.
+Kinoform synthesis is an approximation problem, not a recovery problem. Its
+classical iterative algorithms therefore do not converge to the target but
+to a limit cycle whose distance to the target is the irreducible synthesis
+floor. The Overdrive update rule is, in log-amplitude coordinates, a
+first-order IIR filter with pole at $z=\beta$; closing the loop through the
+GS projection at the limit cycle shifts the pole to $z=\beta-c$, where $c$
+is the local contraction constant of GS. The iteration is stable for every
+$\beta\in(0,1)$ and the synthesis floor
+$\mathrm{Var}\{\eta\}/(1-(\beta-c)^2)$ is minimized at $\beta=c$. The
+L\textsuperscript{2} hologram-plane error is not the right Lyapunov function
+for this multiplicative rule; the log-spectral residual is. Numerical
+experiments on ten natural grayscale images confirm the prediction of an
+interior optimum in $\beta$ and show a $7.4$~dB PSNR advantage of Overdrive
+at $\beta=0.7$ over plain Gerchberg--Saxton.
 
 \paragraph{Code and data availability.} A reference Python implementation of
 all algorithms discussed, together with the benchmark scripts and image set
