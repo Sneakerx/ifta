@@ -43,6 +43,22 @@ def label_for(name: str, kwargs: dict) -> str:
     return f"{name}({', '.join(parts)})"
 
 
+def psnr_unscaled(target_intensity: np.ndarray, current_intensity: np.ndarray) -> float:
+    """PSNR without per-iteration power rescale.
+
+    The reconstructed intensity is taken as is (laser power was matched to the
+    target via Parseval at run start, so this only fails if the algorithm
+    drifts). Peak = max of target. Reflects what a real holographic projector
+    would deliver, since output power cannot be freely rescaled at runtime.
+    """
+    peak = max(float(target_intensity.max()), 1e-12)
+    err = (target_intensity - current_intensity).astype(np.float64)
+    mse_val = float(np.mean(err ** 2))
+    if mse_val <= 1e-12:
+        return float("inf")
+    return float(10.0 * np.log10(peak ** 2 / mse_val))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("data_dir", type=Path)
@@ -54,6 +70,12 @@ def main() -> int:
         "--extensions",
         nargs="+",
         default=["bmp", "png", "jpg", "jpeg", "tif", "tiff"],
+    )
+    parser.add_argument(
+        "--no-renormalize",
+        action="store_true",
+        help="Disable the global Parseval rescale in update rules. "
+             "Use to run the algorithm exactly as analyzed in the paper.",
     )
     args = parser.parse_args()
 
@@ -89,15 +111,23 @@ def main() -> int:
         print(f"[{img_idx + 1}/{len(image_paths)}] {path.name} {img.shape}")
         for rule_name, rule_kwargs in DEFAULT_RULES:
             label = label_for(rule_name, rule_kwargs)
+            extra_kwargs = dict(rule_kwargs)
+            if args.no_renormalize:
+                extra_kwargs["renormalize"] = False
             t0 = time.perf_counter()
             result = run_ifta(
                 img,
                 update_rule=rule_name,
                 iterations=args.iterations,
                 initial_phase=initial_phase,
-                **rule_kwargs,
+                **extra_kwargs,
             )
             dt = time.perf_counter() - t0
+
+            # Skalierungsfreie PSNR aus dem rekonstruierten Intensitätsbild.
+            # load_image_grayscale liefert bereits [0,1]; result.intensity ist
+            # das (nicht-rescalete) Intensitätsbild der finalen Phase.
+            psnr_unsc = psnr_unscaled(img.astype(np.float64), result.intensity)
 
             curves_psnr[label].append(result.psnr_history)
             curves_logspec[label].append(result.log_spectral_history)
@@ -107,19 +137,29 @@ def main() -> int:
                     "image": path.name,
                     "rule": label,
                     "final_psnr_db": result.psnr_history[-1] if result.psnr_history else "",
+                    "final_psnr_unscaled_db": f"{psnr_unsc:.4f}",
                     "final_log_spec": result.log_spectral_history[-1]
                     if result.log_spectral_history
                     else "",
                     "wall_seconds": f"{dt:.3f}",
                 }
             )
-            print(f"    {label:<28} PSNR={result.psnr_history[-1]:6.2f} dB  ({dt:.2f}s)")
+            print(f"    {label:<28} PSNR={result.psnr_history[-1]:6.2f} dB "
+                  f"(unscaled={psnr_unsc:6.2f} dB) ({dt:.2f}s)")
 
     # --- Save CSV summary
     summary_path = args.output / "summary.csv"
     with summary_path.open("w", newline="") as fp:
         writer = csv.DictWriter(
-            fp, fieldnames=["image", "rule", "final_psnr_db", "final_log_spec", "wall_seconds"]
+            fp,
+            fieldnames=[
+                "image",
+                "rule",
+                "final_psnr_db",
+                "final_psnr_unscaled_db",
+                "final_log_spec",
+                "wall_seconds",
+            ],
         )
         writer.writeheader()
         writer.writerows(summary_rows)

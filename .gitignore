@@ -20,6 +20,9 @@ env/
 *.swp
 *~
 
+# Claude Code session metadata
+.claude/
+
 # OS
 .DS_Store
 Thumbs.db

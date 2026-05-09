@@ -82,6 +82,7 @@ def fienup_amplitude(
     *,
     beta: float = 0.5,
     warmup: int = 3,
+    renormalize: bool = True,
     **kwargs,
 ) -> np.ndarray:
     """Fienup amplitude variant (1978) with linear over-correction.
@@ -92,7 +93,9 @@ def fienup_amplitude(
         return target_amp.copy()
     new_amp = target_amp + beta * (target_amp - current_amp)
     new_amp = np.maximum(new_amp, 0.0)
-    return _renormalize_amplitude(new_amp, target_amp)
+    if renormalize:
+        new_amp = _renormalize_amplitude(new_amp, target_amp)
+    return new_amp
 
 
 def bengtsson(
@@ -104,9 +107,10 @@ def bengtsson(
     beta: float = 0.35,
     warmup: int = 3,
     eps: float = 1e-12,
+    renormalize: bool = True,
     **kwargs,
 ) -> np.ndarray:
-    """Bengtsson (1994): |G'| = |G_{k-1}'| * (|F|/|G|)^beta."""
+    """Bengtsson (1998): |G'| = |G_{k-1}'| * (|F|/|G|)^beta."""
     if iteration < warmup:
         return target_amp.copy()
     ratio = np.divide(
@@ -116,7 +120,9 @@ def bengtsson(
         where=current_amp > eps,
     )
     new_amp = prev_virtual_amp * ratio**beta
-    return _renormalize_amplitude(new_amp, target_amp)
+    if renormalize:
+        new_amp = _renormalize_amplitude(new_amp, target_amp)
+    return new_amp
 
 
 def overdrive(
@@ -128,6 +134,7 @@ def overdrive(
     beta: float = 0.5,
     warmup: int = 3,
     eps: float = 1e-12,
+    renormalize: bool = True,
     **kwargs,
 ) -> np.ndarray:
     """Overdrive (Bernau, 2007):
@@ -136,6 +143,10 @@ def overdrive(
 
     Dimensionally balanced (exponents sum to one). The log-amplitude form is
     a first-order IIR filter with pole at z = beta — see paper.
+
+    Note on renormalization: the global Parseval rescale in
+    _renormalize_amplitude is *not* part of the analytic update rule. To run
+    the algorithm exactly as analyzed in the paper, set renormalize=False.
     """
     if iteration < warmup:
         return target_amp.copy()
@@ -150,7 +161,9 @@ def overdrive(
     )
     # Pixels where the target is exactly zero must stay zero (no division done)
     new_amp = np.where(target_amp > 0, new_amp, 0.0)
-    return _renormalize_amplitude(new_amp, target_amp)
+    if renormalize:
+        new_amp = _renormalize_amplitude(new_amp, target_amp)
+    return new_amp
 
 
 def overdrive_adaptive(
@@ -162,6 +175,7 @@ def overdrive_adaptive(
     contraction_estimate: float = 0.5,
     warmup: int = 3,
     eps: float = 1e-12,
+    renormalize: bool = True,
     **kwargs,
 ) -> np.ndarray:
     """Overdrive with beta = c, the local GS contraction estimate.
@@ -178,6 +192,7 @@ def overdrive_adaptive(
         beta=contraction_estimate,
         warmup=warmup,
         eps=eps,
+        renormalize=renormalize,
     )
 
 
