@@ -23,7 +23,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from ifta import run_ifta
-from ifta.baselines import run_hio, run_raar, run_wgs
+from ifta.baselines import run_hio, run_overdrive2, run_raar, run_wgs
 from ifta.utils import load_image_grayscale
 
 
@@ -41,6 +41,7 @@ DEFAULT_RULES = [
     ("Overdrive(beta=0.5)", {"runner": "ifta", "update_rule": "Overdrive", "beta": 0.5}),
     ("Overdrive(beta=0.7)", {"runner": "ifta", "update_rule": "Overdrive", "beta": 0.7}),
     ("Overdrive(beta=0.9)", {"runner": "ifta", "update_rule": "Overdrive", "beta": 0.9}),
+    ("Overdrive2(a=1.0,b=-0.2)", {"runner": "od2", "alpha": 1.0, "beta2": -0.2}),
 ]
 
 
@@ -49,6 +50,7 @@ _RUNNER_DISPATCH = {
     "hio":  run_hio,
     "raar": run_raar,
     "wgs":  run_wgs,
+    "od2":  run_overdrive2,
 }
 
 

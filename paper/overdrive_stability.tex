@@ -26,6 +26,7 @@
 \newcommand{\F}{\lvert F\rvert}
 \newcommand{\Gk}{\lvert G_k\rvert}
 \newcommand{\Gkm}{\lvert G_{k-1}'\rvert}
+\newcommand{\Gkmm}{\lvert G_{k-2}'\rvert}
 \newcommand{\Gkp}{\lvert G_k'\rvert}
 
 \title{Stability of the Overdrive variant of the iterative\\[2pt]
@@ -60,8 +61,10 @@ natural grayscale images, Overdrive at $\beta=0.7$ yields a mean PSNR of
 $32.40$~dB after twenty iterations, an improvement of $7.46$~dB over plain
 GS, $5.43$~dB over the Fienup amplitude variant, and at least $5.9$~dB over
 each of three modern baselines (HIO, RAAR, weighted GS), none of which
-improve on plain GS in this setting. A reference Python implementation is
-provided.
+improve on plain GS in this setting. A heuristic 2nd-order extension
+(empirically tuned) preserves total power better than the 1st-order rule,
+yielding an additional $+0.24$~dB on unscaled PSNR ($29/29$ images,
+$p\!<\!10^{-5}$). A reference Python implementation is provided.
 \end{abstract}
 
 % =====================================================================
@@ -418,8 +421,9 @@ HIO \cite{Fienup1982} ($\beta=0.9$, thr.\ $0.3$)   &  5.20 & 1.62 &  0.87 &  8.8
 RAAR \cite{Luke2005} ($\beta=0.5$)                 & 25.53 & 1.70 & 20.98 & 29.57 & 26.36 & 1.70 \\
 WGS \cite{DiLeonardo2007}                          & 23.07 & 1.68 & 19.13 & 27.09 & 23.31 & 1.69 \\
 Overdrive ($\beta=0.5$)                            & 30.67 & 1.67 & 26.29 & 34.67 & 31.00 & 1.67 \\
-\textbf{Overdrive ($\beta=0.7$)}          & \textbf{32.40} & 1.69 & 28.00 & 36.53 & \textbf{32.81} & 1.70 \\
+Overdrive ($\beta=0.7$)                            & 32.40 & 1.69 & 28.00 & 36.53 & 32.81 & 1.70 \\
 Overdrive ($\beta=0.9$)                            & 28.76 & 1.84 & 24.84 & 33.07 & 29.34 & 1.80 \\
+\textbf{Overdrive$^{2}$ ($\alpha\!=\!1.0,\,\beta_2\!=\!-0.2$)} & 32.39 & 1.68 & 27.99 & 36.41 & \textbf{33.05} & 1.69 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -451,6 +455,35 @@ match GS to within $0.6$~dB and $1.9$~dB respectively; neither helps. We
 conclude that modern phase-retrieval workhorses do not transfer to the
 kinoform-synthesis setting --- consistent with the analytical argument of
 Section~\ref{sec:rule} that the two problems are different.
+
+\paragraph{An empirical 2nd-order Overdrive.} The IIR-filter view of
+Section~\ref{sec:log} suggests a natural extension to a 2-pole rule
+\begin{equation}
+  \Gkp \;=\; \Gkm^{\alpha}\;\Gkmm^{\,\beta_{2}}\;\F^{\,2-\alpha-\beta_{2}}\big/\Gk,
+  \label{eq:od2}
+\end{equation}
+which preserves the dimensional balance for any $(\alpha,\beta_{2})$ and
+reduces to standard Overdrive at $\beta_{2}\!=\!0$. We caution that the AR(1)
+linearization of Section~\ref{sec:stability} fails three independent
+empirical consistency checks (the implied $c\approx-0.21$ violates the
+$c\!\in\![0,1]$ bound; the residuals of the AR(1) fit on $u_{k}$ are heavily
+autocorrelated, $\rho_{1}\!\approx\!+0.89$, far from white; the residuals of
+the AR(1) fit on $v_{k}$ have the wrong sign relative to the
+white-$\eta$ ARMA(1,1) prediction). Equation~\eqref{eq:od2} is therefore
+treated purely heuristically: $(\alpha^{*},\beta_{2}^{*})$ is found by grid
+search on a 10-image training subset and evaluated on the disjoint 19-image
+test subset. The training optimum is $(\alpha^{*},\beta_{2}^{*})=(1.0,-0.2)$;
+on the held-out test set this configuration yields a mean PSNR of $32.91$~dB
+versus $32.51$~dB for $\mathrm{Overdrive}(\beta\!=\!0.7)$, a gain of
+$+0.39$~dB. On the full 29-image set the gain on \emph{scaled} PSNR is
+indistinguishable from zero ($-0.01$~dB, paired Wilcoxon $p\!=\!0.30$); on
+\emph{unscaled} PSNR, however, $\mathrm{Overdrive}^{2}$ wins
+$29/29$ images at a mean of $+0.24$~dB, $p\!<\!10^{-5}$. The 2nd-order rule
+preserves total power better than the 1st-order rule, an advantage that the
+power-rescaled metric of \cite{Bernau2012} hides but a physical projector
+would deliver. We make no claim of analytical optimality; the operator-
+spectral analysis required for a closed-form $(\alpha^{*},\beta_{2}^{*})$ is
+beyond the scope of this note.
 
 \begin{figure}[t]
   \centering

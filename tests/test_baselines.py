@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from ifta.baselines import run_hio, run_raar, run_wgs
+from ifta.baselines import run_hio, run_overdrive2, run_raar, run_wgs
 
 
 @pytest.fixture
@@ -61,3 +61,24 @@ def test_hio_high_threshold_matches_gs(
                   initial_phase=initial_phase)
     # Compare final scaled PSNR; should be very close
     assert abs(hio.psnr_history[-1] - gs.psnr_history[-1]) < 0.1
+
+
+def test_overdrive2_runs(simple_target: np.ndarray, initial_phase: np.ndarray) -> None:
+    result = run_overdrive2(simple_target, iterations=10, alpha=0.7, beta2=-0.1,
+                           initial_phase=initial_phase)
+    assert result.phase.shape == simple_target.shape
+    assert len(result.psnr_history) == 10
+    assert np.all(np.isfinite(result.intensity))
+
+
+def test_overdrive2_zero_beta_matches_overdrive(
+    simple_target: np.ndarray, initial_phase: np.ndarray
+) -> None:
+    """At β2=0, Overdrive2 reduces to 1st-order Overdrive(α)."""
+    from ifta import run_ifta
+
+    od1 = run_ifta(simple_target, update_rule="Overdrive", beta=0.7, warmup=3,
+                   iterations=15, initial_phase=initial_phase)
+    od2 = run_overdrive2(simple_target, alpha=0.7, beta2=0.0, warmup=3,
+                        iterations=15, initial_phase=initial_phase)
+    assert abs(od1.psnr_history[-1] - od2.psnr_history[-1]) < 1e-6

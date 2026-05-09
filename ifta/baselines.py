@@ -226,6 +226,82 @@ def run_raar(
 
 
 # -----------------------------------------------------------------------------
+# 2nd-order Overdrive (heuristic extension)
+# -----------------------------------------------------------------------------
+
+
+def run_overdrive2(
+    image: np.ndarray,
+    *,
+    iterations: int = 20,
+    alpha: float = 0.7,
+    beta2: float = 0.0,
+    warmup: int = 4,
+    initial_phase: Optional[np.ndarray] = None,
+    rng: Optional[np.random.Generator] = None,
+    record_history: bool = True,
+    renormalize: bool = True,
+    **kwargs,
+) -> IFTAResult:
+    """2nd-order Overdrive (heuristic extension).
+
+        |G'_k| = |G'_{k-1}|^α · |G'_{k-2}|^β · |F|^(2-α-β) / |G_k|
+
+    Log form:  u_k = α·u_{k-1} + β·u_{k-2} - v_k.  For β=0 this reduces
+    to 1st-order Overdrive with parameter α; the 2-parameter family is
+    strictly more expressive.
+
+    Note: the empirical η-whiteness test (scripts/test_eta_whiteness.py)
+    showed the AR(1) closed-loop model with white η fails three independent
+    consistency checks. The 2nd-order family here is therefore purely
+    heuristic — the optimum (α*, β*) is to be found by empirical search,
+    not derived from a closed-form formula.
+    """
+    target_intensity, target_amp, laser_amp, laser_amp_scalar, grating = \
+        _setup(image, initial_phase, rng)
+
+    prev_virtual = target_amp.copy()
+    prev_prev_virtual = target_amp.copy()
+    psnr_hist, mse_hist, logspec_hist = [], [], []
+
+    for k in range(iterations):
+        U = np.fft.fft2(grating, norm="ortho")
+        current_amp = np.abs(U)
+        if record_history:
+            _record(target_intensity, target_amp, U, current_amp,
+                    psnr_hist, mse_hist, logspec_hist)
+
+        if k < warmup:
+            new_amp = target_amp.copy()
+        else:
+            safe = np.where(current_amp > EPS, current_amp, EPS)
+            new_amp = (
+                np.power(np.maximum(prev_virtual, EPS), alpha)
+                * np.power(np.maximum(prev_prev_virtual, EPS), beta2)
+                * np.power(np.maximum(target_amp, EPS), 2.0 - alpha - beta2)
+                / safe
+            )
+            new_amp = np.where(target_amp > 0, new_amp, 0.0)
+            if renormalize:
+                tot = target_amp.sum()
+                cur = new_amp.sum()
+                if cur > EPS:
+                    new_amp = new_amp * (tot / cur)
+
+        U_new = new_amp * np.exp(1j * np.angle(U))
+        u_new = np.fft.ifft2(U_new, norm="ortho")
+        phi = np.mod(np.angle(u_new), 2.0 * np.pi)
+        grating = laser_amp * np.exp(1j * phi)
+
+        prev_prev_virtual = prev_virtual
+        prev_virtual = new_amp
+
+    return _final_result(grating, laser_amp, iterations,
+                         f"Overdrive2(α={alpha},β={beta2})",
+                         psnr_hist, mse_hist, logspec_hist)
+
+
+# -----------------------------------------------------------------------------
 # Weighted GS (Di Leonardo 2007), generalized to dense grayscale
 # -----------------------------------------------------------------------------
 
