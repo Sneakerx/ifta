@@ -23,24 +23,33 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from ifta import run_ifta
+from ifta.baselines import run_hio, run_raar, run_wgs
 from ifta.utils import load_image_grayscale
 
 
+# Each entry: (display_name, runner, kwargs)
+# Modern baselines (HIO, RAAR, WGS) use standalone runners because they
+# operate on complex iterates rather than amplitudes only.
 DEFAULT_RULES = [
-    ("GS", {}),
-    ("Fienup", {"beta": 0.5}),
-    ("Bengtsson", {"beta": 0.35}),
-    ("Overdrive", {"beta": 0.5}),
-    ("Overdrive", {"beta": 0.7}),
-    ("Overdrive", {"beta": 0.9}),
+    ("GS",                {"runner": "ifta", "update_rule": "GS"}),
+    ("Fienup(beta=0.5)",  {"runner": "ifta", "update_rule": "Fienup",    "beta": 0.5}),
+    ("Bengtsson(beta=0.35)", {"runner": "ifta", "update_rule": "Bengtsson", "beta": 0.35}),
+    ("HIO(beta=0.5,thr=0.3)", {"runner": "hio",  "beta": 0.5, "threshold": 0.3}),
+    ("HIO(beta=0.9,thr=0.3)", {"runner": "hio",  "beta": 0.9, "threshold": 0.3}),
+    ("RAAR(beta=0.5)",    {"runner": "raar", "beta": 0.5}),
+    ("WGS",               {"runner": "wgs"}),
+    ("Overdrive(beta=0.5)", {"runner": "ifta", "update_rule": "Overdrive", "beta": 0.5}),
+    ("Overdrive(beta=0.7)", {"runner": "ifta", "update_rule": "Overdrive", "beta": 0.7}),
+    ("Overdrive(beta=0.9)", {"runner": "ifta", "update_rule": "Overdrive", "beta": 0.9}),
 ]
 
 
-def label_for(name: str, kwargs: dict) -> str:
-    if not kwargs:
-        return name
-    parts = [f"{k}={v}" for k, v in kwargs.items()]
-    return f"{name}({', '.join(parts)})"
+_RUNNER_DISPATCH = {
+    "ifta": run_ifta,
+    "hio":  run_hio,
+    "raar": run_raar,
+    "wgs":  run_wgs,
+}
 
 
 def psnr_unscaled(target_intensity: np.ndarray, current_intensity: np.ndarray) -> float:
@@ -92,9 +101,9 @@ def main() -> int:
 
     print(f"Found {len(image_paths)} images in {args.data_dir}")
 
-    # PSNR curves: dict[label] -> ndarray (n_images, iterations)
-    curves_psnr: dict[str, list[list[float]]] = {label_for(n, k): [] for n, k in DEFAULT_RULES}
-    curves_logspec: dict[str, list[list[float]]] = {label_for(n, k): [] for n, k in DEFAULT_RULES}
+    # PSNR curves: dict[label] -> list of per-iter histories
+    curves_psnr: dict[str, list[list[float]]] = {label: [] for label, _ in DEFAULT_RULES}
+    curves_logspec: dict[str, list[list[float]]] = {label: [] for label, _ in DEFAULT_RULES}
 
     summary_rows: list[dict] = []
 
@@ -109,24 +118,22 @@ def main() -> int:
         initial_phase = rng.uniform(0.0, 2.0 * np.pi, size=img.shape)
 
         print(f"[{img_idx + 1}/{len(image_paths)}] {path.name} {img.shape}")
-        for rule_name, rule_kwargs in DEFAULT_RULES:
-            label = label_for(rule_name, rule_kwargs)
-            extra_kwargs = dict(rule_kwargs)
-            if args.no_renormalize:
-                extra_kwargs["renormalize"] = False
+        for label, rule_kwargs in DEFAULT_RULES:
+            kw = dict(rule_kwargs)
+            runner_key = kw.pop("runner")
+            runner = _RUNNER_DISPATCH[runner_key]
+            if args.no_renormalize and runner_key == "ifta":
+                kw["renormalize"] = False
+
             t0 = time.perf_counter()
-            result = run_ifta(
+            result = runner(
                 img,
-                update_rule=rule_name,
                 iterations=args.iterations,
                 initial_phase=initial_phase,
-                **extra_kwargs,
+                **kw,
             )
             dt = time.perf_counter() - t0
 
-            # Skalierungsfreie PSNR aus dem rekonstruierten Intensitätsbild.
-            # load_image_grayscale liefert bereits [0,1]; result.intensity ist
-            # das (nicht-rescalete) Intensitätsbild der finalen Phase.
             psnr_unsc = psnr_unscaled(img.astype(np.float64), result.intensity)
 
             curves_psnr[label].append(result.psnr_history)

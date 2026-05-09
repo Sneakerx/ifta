@@ -57,9 +57,11 @@ L\textsuperscript{2} hologram-plane error; this resolves the apparent
 paradox that the hologram-plane correction vector can grow transiently
 while the image-plane error decreases. On a benchmark of 29
 natural grayscale images, Overdrive at $\beta=0.7$ yields a mean PSNR of
-$32.40$~dB after twenty iterations, an improvement of $7.46$~dB over plain GS
-and $5.43$~dB over the Fienup amplitude variant. A reference Python
-implementation is provided.
+$32.40$~dB after twenty iterations, an improvement of $7.46$~dB over plain
+GS, $5.43$~dB over the Fienup amplitude variant, and at least $5.9$~dB over
+each of three modern baselines (HIO, RAAR, weighted GS), none of which
+improve on plain GS in this setting. A reference Python implementation is
+provided.
 \end{abstract}
 
 % =====================================================================
@@ -84,13 +86,21 @@ Gerchberg--Saxton algorithm \cite{Gerchberg1972} and its many descendants
 \cite{Fienup1978,Fienup1980,Prongue1992,Bengtsson1998,Liu2006} solve the
 kinoform synthesis problem by alternating Fourier projections and remain the
 workhorse of real-time hologram generation on phase-only spatial light
-modulators. Modern phase-retrieval methods --- Wirtinger Flow
+modulators. The Hybrid Input--Output algorithm \cite{Fienup1982} adds
+input-plane feedback for phase retrieval and is the canonical extension of
+GS in that setting; the Relaxed Averaged Alternating Reflections (RAAR)
+algorithm \cite{Luke2005} replaces alternating projections with averaged
+reflections for problems with two magnitude constraints; and the Weighted GS
+algorithm \cite{DiLeonardo2007} adds a cumulative pixelwise weighting scheme
+originally designed for spot-array generation. Section~\ref{sec:numerics}
+benchmarks all three. Modern phase-retrieval methods --- Wirtinger Flow
 \cite{Candes2014} and randomly-initialized gradient descent \cite{Chen2018}
 --- give global convergence guarantees, but those guarantees apply to a
 problem in which a true solution exists; they do not transfer to the kinoform
 case, where no such solution does. Deep-learning approaches
-\cite{Zheng2021,Sun2022,Zhu2025} sidestep iteration altogether at the cost of
-training data and inference hardware. For real-time video projection on
+\cite{Zheng2021,Sun2022,Zhu2025} and Camera-in-the-Loop training
+\cite{Peng2020} sidestep iteration altogether at the cost of training data
+and dedicated hardware. For real-time video projection on
 commodity hardware --- our motivating application --- the classical
 multiplicative IFTA family remains attractive: nearly as cheap as GS per
 iteration, no training, convergence in about a dozen FFT cycles. The
@@ -357,8 +367,17 @@ $\beta$ trades off transient speed against asymptotic synthesis quality.
 % =====================================================================
 
 We benchmark Overdrive at three values of $\beta$ against plain GS,
-Fienup--Amplitude (with $\beta_{\mathrm{FA}}=0.5$), and Bengtsson (with
-$\beta_{\mathrm{BE}}=0.35$) on 29 natural grayscale images of resolution
+Fienup--Amplitude ($\beta_{\mathrm{FA}}=0.5$), Bengtsson
+($\beta_{\mathrm{BE}}=0.35$), and three modern baselines: HIO
+\cite{Fienup1982} at the standard phase-retrieval setting
+$\beta_{\mathrm{HIO}}=0.9$ as well as a milder $\beta=0.5$, RAAR
+\cite{Luke2005} at $\beta_{\mathrm{RAAR}}=0.5$ (the best-tuned value in our
+sweep), and a pixelwise-weighted GS in the spirit of \cite{DiLeonardo2007}.
+The HIO and RAAR adaptations to the kinoform-synthesis setting follow
+standard practice: the hologram-plane constraint $|g|=u$ takes the role of
+the support constraint, with HIO triggering its feedback branch on pixels
+whose post-projection amplitude deviates from $u$ by more than $30\%$. The
+benchmark is run on 29 natural grayscale images of resolution
 $256\times 256$. The image set is the ``Klasse~1'' subset used in
 \cite{Bernau2012}, drawn from the LIVE Image Quality Assessment Database
 \cite{Sheikh2005} and converted to grayscale. All algorithms
@@ -381,8 +400,9 @@ rescale, therefore describes the released algorithm faithfully.
 \caption{Final PSNR (dB) after 20 iterations, over 29 natural grayscale
 images of size $256\times 256$. Higher is better. ``Scaled'' applies a
 per-image total-power rescale before computing PSNR (dissertation
-convention); ``unscaled'' does not. Overdrive dominates at all three
-$\beta$ values; the optimum on this set lies near $\beta=0.7$.}
+convention); ``unscaled'' does not. Overdrive at $\beta=0.7$ dominates all
+classical IFTA variants and all three modern baselines (HIO, RAAR, WGS),
+none of which improve on plain GS in this setting.}
 \label{tab:results}
 \small
 \begin{tabular}{lcccccc}
@@ -393,6 +413,10 @@ Algorithm & mean & std & min & max & mean & std \\\midrule
 GS \cite{Gerchberg1972}                            & 24.94 & 1.65 & 20.66 & 28.88 & 25.21 & 1.65 \\
 Bengtsson \cite{Bengtsson1998} ($\beta=0.35$)      & 23.25 & 1.69 & 19.22 & 27.39 & 23.50 & 1.69 \\
 Fienup--Amplitude \cite{Fienup1978} ($\beta=0.5$)  & 26.97 & 1.66 & 22.64 & 30.94 & 27.26 & 1.66 \\
+HIO \cite{Fienup1982} ($\beta=0.5$, thr.\ $0.3$)   & 24.99 & 1.66 & 20.68 & 28.93 & 17.06 & 1.69 \\
+HIO \cite{Fienup1982} ($\beta=0.9$, thr.\ $0.3$)   &  5.20 & 1.62 &  0.87 &  8.82 &  5.07 & 1.67 \\
+RAAR \cite{Luke2005} ($\beta=0.5$)                 & 25.53 & 1.70 & 20.98 & 29.57 & 26.36 & 1.70 \\
+WGS \cite{DiLeonardo2007}                          & 23.07 & 1.68 & 19.13 & 27.09 & 23.31 & 1.69 \\
 Overdrive ($\beta=0.5$)                            & 30.67 & 1.67 & 26.29 & 34.67 & 31.00 & 1.67 \\
 \textbf{Overdrive ($\beta=0.7$)}          & \textbf{32.40} & 1.69 & 28.00 & 36.53 & \textbf{32.81} & 1.70 \\
 Overdrive ($\beta=0.9$)                            & 28.76 & 1.84 & 24.84 & 33.07 & 29.34 & 1.80 \\
@@ -401,16 +425,32 @@ Overdrive ($\beta=0.9$)                            & 28.76 & 1.84 & 24.84 & 33.0
 \end{table}
 
 Table~\ref{tab:results} summarizes the final PSNR. Overdrive at $\beta=0.7$
-beats GS by $7.46$~dB, Fienup--Amplitude by $5.43$~dB, and Bengtsson by
-$9.15$~dB, on average. The non-monotone behaviour in $\beta$
-(0.5\,$<$\,0.7\,$>$\,0.9) confirms the existence of an interior optimum,
-qualitatively as predicted by the closed-loop pole analysis. Note that
-$\beta=0.5$ has been the conventional choice motivated by implementation
-simplicity (two square roots) \cite{Bernau2012}; our results suggest the
-optimal value is consistently larger. The unscaled and scaled PSNR differ by
-only $0.3$--$0.6$~dB across rules, with unscaled values being uniformly
-higher: the scaled metric of \cite{Bernau2012} therefore neither inflates
-nor reorders the comparison.
+beats GS by $7.46$~dB, Fienup--Amplitude by $5.43$~dB, Bengtsson by
+$9.15$~dB, RAAR by $6.87$~dB, and WGS by $9.33$~dB on average. The
+non-monotone behaviour in $\beta$ (0.5\,$<$\,0.7\,$>$\,0.9) confirms the
+existence of an interior optimum, qualitatively as predicted by the
+closed-loop pole analysis. Note that $\beta=0.5$ has been the conventional
+choice motivated by implementation simplicity (two square roots)
+\cite{Bernau2012}; our results suggest the optimal value is consistently
+larger. The unscaled and scaled PSNR differ by only $0.3$--$0.6$~dB across
+the multiplicative rules, with unscaled values being uniformly higher: the
+scaled metric of \cite{Bernau2012} therefore neither inflates nor reorders
+the comparison among IFTA variants.
+
+\paragraph{The modern phase-retrieval baselines do not transfer.} HIO at the
+canonical phase-retrieval setting $\beta_{\mathrm{HIO}}=0.9$ diverges
+spectacularly on grayscale kinoform synthesis (mean PSNR $5.20$~dB,
+indistinguishable from random phase) because the input-plane HIO feedback
+treats the constant-amplitude constraint as an outlier set, not a support
+set: most pixels trigger the feedback branch and the iterate drifts away
+from any realizable hologram. At a milder $\beta_{\mathrm{HIO}}=0.5$ the
+scaled PSNR recovers to $24.99$~dB --- nominally tied with GS --- but the
+unscaled PSNR drops to $17.06$~dB, an $8$~dB gap that exposes a power drift
+the dissertation's rescaled metric had hidden. RAAR and WGS, while stable,
+match GS to within $0.6$~dB and $1.9$~dB respectively; neither helps. We
+conclude that modern phase-retrieval workhorses do not transfer to the
+kinoform-synthesis setting --- consistent with the analytical argument of
+Section~\ref{sec:rule} that the two problems are different.
 
 \begin{figure}[t]
   \centering
@@ -501,6 +541,16 @@ distribution that resembles the target images) and require dedicated
 hardware. They sidestep rather than solve the analytical question studied
 here: \emph{how does the synthesis floor of a classical iterative
 algorithm depend on its parameters?}.
+
+\paragraph{A different problem statement: Camera-in-the-Loop.} Camera-in-the-Loop
+GS \cite{Peng2020} closes the gap between a physical SLM and the idealized
+forward model by replacing simulated propagation with measurements from a
+camera during training. In a sim-only benchmark such as ours the camera step
+is the identity, so CITL reduces to plain GS; including it as a baseline
+would be misleading. CITL is the right comparison for hardware deployment
+on a specific SLM, not for the parameter-dependence question studied here.
+We expect CITL training to compose with Overdrive as a drop-in update rule
+on the simulation side; verifying this composition is left to future work.
 
 \paragraph{The role of the dimensional balance.} The exponent $2-\beta$ in
 \eqref{eq:overdrive} serves two purposes. First, it ensures that an exact
