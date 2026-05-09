@@ -55,10 +55,10 @@ which is minimized at $\beta=c$. The natural Lyapunov candidate for these
 multiplicative rules is the log-spectral distance (LSD), not the
 L\textsuperscript{2} hologram-plane error; this resolves the apparent
 paradox that the hologram-plane correction vector can grow transiently
-while the image-plane error decreases. On a benchmark of ten
+while the image-plane error decreases. On a benchmark of 29
 natural grayscale images, Overdrive at $\beta=0.7$ yields a mean PSNR of
-$32.19$~dB after twenty iterations, an improvement of $7.43$~dB over plain GS
-and $5.41$~dB over the Fienup amplitude variant. A reference Python
+$32.40$~dB after twenty iterations, an improvement of $7.46$~dB over plain GS
+and $5.43$~dB over the Fienup amplitude variant. A reference Python
 implementation is provided.
 \end{abstract}
 
@@ -358,49 +358,65 @@ $\beta$ trades off transient speed against asymptotic synthesis quality.
 
 We benchmark Overdrive at three values of $\beta$ against plain GS,
 Fienup--Amplitude (with $\beta_{\mathrm{FA}}=0.5$), and Bengtsson (with
-$\beta_{\mathrm{BE}}=0.35$) on ten natural grayscale images of resolution
+$\beta_{\mathrm{BE}}=0.35$) on 29 natural grayscale images of resolution
 $256\times 256$. The image set is the ``Klasse~1'' subset used in
 \cite{Bernau2012}, drawn from the LIVE Image Quality Assessment Database
 \cite{Sheikh2005} and converted to grayscale. All algorithms
 share the same random initial phase per image (seeded), run for 20 iterations,
 and apply the variant rule from iteration~4 onward (three GS warm-up steps).
-Implementation is in NumPy 2.4 and is released alongside this paper.
+Implementation is in NumPy~2.4 and is released alongside this paper. We
+report PSNR in two flavors: a \emph{scaled} variant in which the reconstructed
+intensity is rescaled to match the target's total power before the error is
+computed (the convention used in the dissertation \cite{Bernau2012}), and an
+\emph{unscaled} variant that takes the reconstruction as is, reflecting what
+a physical projector would deliver. We also verified that the global Parseval
+rescale that the reference code applies after each multiplicative update is
+empirically a no-op: across all six rules and 29 images, the maximum PSNR
+difference between runs with and without the rescale is $0.013$~dB. The
+analysis of Sections~\ref{sec:rule}--\ref{sec:stochastic}, which omits the
+rescale, therefore describes the released algorithm faithfully.
 
 \begin{table}[t]
 \centering
-\caption{Final PSNR (dB) after 20 iterations, averaged over 10 natural
-grayscale images of size $256\times 256$. Higher is better. Overdrive
-dominates at all three $\beta$ values; the optimum on this set lies near
-$\beta=0.7$.}
+\caption{Final PSNR (dB) after 20 iterations, over 29 natural grayscale
+images of size $256\times 256$. Higher is better. ``Scaled'' applies a
+per-image total-power rescale before computing PSNR (dissertation
+convention); ``unscaled'' does not. Overdrive dominates at all three
+$\beta$ values; the optimum on this set lies near $\beta=0.7$.}
 \label{tab:results}
 \small
-\begin{tabular}{lcccc}
+\begin{tabular}{lcccccc}
 \toprule
-Algorithm                 & mean    & std    & min     & max     \\\midrule
-GS \cite{Gerchberg1972}                       & 24.76   & 1.43   & 22.67   & 27.90   \\
-Bengtsson \cite{Bengtsson1998} ($\beta=0.35$) & 23.27   & 1.57   & 20.91   & 26.76   \\
-Fienup--Amplitude \cite{Fienup1978} ($\beta=0.5$) & 26.78   & 1.44   & 24.69   & 29.94   \\
-Overdrive ($\beta=0.5$)   & 30.44   & 1.43   & 28.35   & 33.54   \\
-\textbf{Overdrive ($\beta=0.7$)} & \textbf{32.19} & 1.45 & 30.06 & 35.33 \\
-Overdrive ($\beta=0.9$)   & 28.89   & 1.54   & 26.58   & 32.34   \\
+& \multicolumn{4}{c}{scaled PSNR (dB)} & \multicolumn{2}{c}{unscaled PSNR (dB)} \\
+\cmidrule(lr){2-5}\cmidrule(lr){6-7}
+Algorithm & mean & std & min & max & mean & std \\\midrule
+GS \cite{Gerchberg1972}                            & 24.94 & 1.65 & 20.66 & 28.88 & 25.21 & 1.65 \\
+Bengtsson \cite{Bengtsson1998} ($\beta=0.35$)      & 23.25 & 1.69 & 19.22 & 27.39 & 23.50 & 1.69 \\
+Fienup--Amplitude \cite{Fienup1978} ($\beta=0.5$)  & 26.97 & 1.66 & 22.64 & 30.94 & 27.26 & 1.66 \\
+Overdrive ($\beta=0.5$)                            & 30.67 & 1.67 & 26.29 & 34.67 & 31.00 & 1.67 \\
+\textbf{Overdrive ($\beta=0.7$)}          & \textbf{32.40} & 1.69 & 28.00 & 36.53 & \textbf{32.81} & 1.70 \\
+Overdrive ($\beta=0.9$)                            & 28.76 & 1.84 & 24.84 & 33.07 & 29.34 & 1.80 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 Table~\ref{tab:results} summarizes the final PSNR. Overdrive at $\beta=0.7$
-beats GS by $7.43$~dB, Fienup--Amplitude by $5.41$~dB, and Bengtsson by
-$8.92$~dB, on average. The non-monotone behaviour in $\beta$
+beats GS by $7.46$~dB, Fienup--Amplitude by $5.43$~dB, and Bengtsson by
+$9.15$~dB, on average. The non-monotone behaviour in $\beta$
 (0.5\,$<$\,0.7\,$>$\,0.9) confirms the existence of an interior optimum,
 qualitatively as predicted by the closed-loop pole analysis. Note that
 $\beta=0.5$ has been the conventional choice motivated by implementation
-simplicity (two square roots) \cite{Bernau2012}; our analysis suggests the
-optimal value is consistently larger.
+simplicity (two square roots) \cite{Bernau2012}; our results suggest the
+optimal value is consistently larger. The unscaled and scaled PSNR differ by
+only $0.3$--$0.6$~dB across rules, with unscaled values being uniformly
+higher: the scaled metric of \cite{Bernau2012} therefore neither inflates
+nor reorders the comparison.
 
 \begin{figure}[t]
   \centering
   \includegraphics[width=\linewidth]{figures/benchmark.png}
-  \caption{(left) PSNR vs.\ iteration, averaged over 10 natural grayscale
-  images; (right) log-spectral residual \eqref{eq:lyap}, the Lyapunov
+  \caption{(left) PSNR vs.\ iteration, averaged over 29 natural grayscale
+  images; (right) log-spectral distance \eqref{eq:lyap}, the Lyapunov
   candidate. Each curve approaches a non-zero plateau --- the kinoform
   synthesis floor of \eqref{eq:ssresid}. The $\beta=0.7$ Overdrive curve has
   the steepest transient slope and the lowest plateau, consistent with the
@@ -410,25 +426,38 @@ optimal value is consistently larger.
 \end{figure}
 
 \paragraph{Decay rates.} Figure~\ref{fig:bench} (right panel) shows the
-log-spectral residual $V_k$ versus iteration. It decays approximately
-geometrically, consistent with \eqref{eq:closed_loop}. Least-squares fits of
-$\log V_k$ over iterations $5$--$20$ yield per-iteration decay factors
-of $0.895$ (GS), $0.879$ (Fienup), $0.831$ ($\beta=0.5$), $\mathbf{0.807}$
-($\beta=0.7$), and $0.850$ ($\beta=0.9$). The fastest decay is achieved at the
-$\beta$ that gives the highest final PSNR, in agreement with the qualitative
-prediction $\beta^{*}\approx c$. The absolute values of the implied
-$\lvert\beta-c\rvert$ are larger than the linearization
-\eqref{eq:gs_linearization} predicts; we attribute this to the noise term
-$\eta_k$, which is non-negligible for natural images and dominates the
-steady-state residual via \eqref{eq:ssresid}. The linearization is therefore
-a useful guide to the \emph{ranking} of $\beta$ values rather than a
-quantitative predictor of absolute decay rate.
+LSD $V_k$ versus iteration. It decays approximately geometrically, consistent
+with \eqref{eq:closed_loop}. Geometric-mean per-iteration decay factors over
+iterations $5$--$20$ are $0.890$ (GS), $0.872$ (Fienup), $0.929$ (Bengtsson),
+$0.829$ ($\beta=0.5$), $\mathbf{0.809}$ ($\beta=0.7$), and $0.857$
+($\beta=0.9$). The fastest decay is achieved at the $\beta$ that gives the
+highest final PSNR, in agreement with the qualitative prediction
+$\beta^{*}\approx c$. The absolute values of the implied $\lvert\beta-c\rvert$
+are larger than the linearization \eqref{eq:gs_linearization} predicts; we
+attribute this to the noise term $\eta_k$, which is non-negligible for natural
+images and dominates the steady-state residual via \eqref{eq:ssresid}. The
+linearization is therefore a useful guide to the \emph{ranking} of $\beta$
+values rather than a quantitative predictor of absolute decay rate.
 
-\paragraph{Adaptive $\beta$.} A simple rule that estimates $c$ online (median
-of the last 5 iteration log-residual ratios; see {\tt ifta.adaptive} in the
-released code) recovers most of the gap to the optimum. Because the contraction
-constant changes only slowly across iterations, even a coarse estimate
-suffices.
+\paragraph{Adaptive $\beta$ and the limits of online estimation.} Setting
+$\beta^*=c$ requires an estimate of $c$. A natural attempt is to read it off
+the LSD trajectory, since $V_k$ decays geometrically with rate $(\beta-c)^2$
+during the transient. The released code ({\tt ifta.adaptive}) implements
+this and we validate it on synthetic AR(1) trajectories with known
+$(\beta,c)$. Two regimes emerge. (i) During the transient, with sufficient
+asymmetry between $\beta$ and $c$ (e.g.\ $\beta=0.3$, $c\!\geq\!0.5$), the
+estimator recovers $c$ with mean absolute error around $0.2$--$0.3$.
+(ii) Near steady state, all such estimators saturate at $V_k/V_{k-1}\!\to\!1$
+because $V_k$ does not decay below the floor $V_\infty$; recovering $c$ from
+$V_k$ alone is fundamentally impossible once the iteration has converged.
+A second, more subtle obstruction is branch ambiguity: $h_k$ depends on
+$|\beta-c|$, so $c=\beta\pm|\beta-c|$ are observationally equivalent and
+cannot be disambiguated from LSD history alone. For $\beta\!\approx\!0.5$
+both branches lie in $[0,1]$ and the estimator must rely on a prior or on
+sign information from the unsquared residual, neither of which the LSD
+provides. We conclude that online estimation of $c$ is feasible during the
+transient phase and useful as a coarse warm-start, but a fixed $\beta$ near
+$c$ from offline calibration is more reliable in practice.
 
 % =====================================================================
 \section{Discussion}\label{sec:discussion}
@@ -443,7 +472,7 @@ at $z=1$); closing the loop through the GS linearization
 \eqref{eq:gs_linearization} gives a closed-loop pole at $z = 1-\beta c$, which
 is in $(0,1)$ for $\beta,c\in(0,1)$. The rule is therefore stable, not
 unstable: Table~\ref{tab:results} confirms it converges. Its empirical
-degradation relative to GS on grayscale targets (23.27 vs.\ 24.76~dB) reflects
+degradation relative to GS on grayscale targets (23.25 vs.\ 24.94~dB) reflects
 two effects that the linearization \emph{cannot} compare across rules: a
 slower closed-loop pole at typical $\beta\!\ll\!1$, and a different noise
 process $\eta_k$ at a different limit cycle. A direct numerical comparison of
@@ -505,9 +534,9 @@ is the local contraction constant of GS. The iteration is stable for every
 $\beta\in(0,1)$ and the synthesis floor
 $\mathrm{Var}\{\eta\}/(1-(\beta-c)^2)$ is minimized at $\beta=c$. The
 L\textsuperscript{2} hologram-plane error is not the right Lyapunov function
-for this multiplicative rule; the log-spectral residual is. Numerical
-experiments on ten natural grayscale images confirm the prediction of an
-interior optimum in $\beta$ and show a $7.4$~dB PSNR advantage of Overdrive
+for this multiplicative rule; the log-spectral distance is. Numerical
+experiments on 29 natural grayscale images confirm the prediction of an
+interior optimum in $\beta$ and show a $7.5$~dB PSNR advantage of Overdrive
 at $\beta=0.7$ over plain Gerchberg--Saxton.
 
 \paragraph{Code and data availability.} A reference Python implementation of
