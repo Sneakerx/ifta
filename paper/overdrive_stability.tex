@@ -524,17 +524,24 @@ consistent with the geometric prediction.
 
 \paragraph{Sparse targets (Klasse 2).} We repeated the benchmark on ten
 point-pattern images (256$\times$256, black background, $N\in[5,50]$
-Gaussian spots), the target class the classical kinoform was designed
-for \cite{Prongue1992,Bengtsson1998}. Salient unscaled-PSNR means: GS
-$44.55$, Bengtsson $45.59$, Fienup $44.99$, NWF $\mathbf{47.22}$,
-Overdrive($\beta=0.7$) $45.47$, RAAR $43.28$ (scaled $52.83$, i.e.\
-$9.5$~dB of power drift). The Overdrive advantage compresses to
-$\approx 1$~dB and the optimum in $\beta$ flattens: on sparse targets
-the dimensional-balance bookkeeping buys little over the
-$\beta\to 1$ Prongu\'e/Bengtsson limit. NWF's advantage flips here as
-the gradient $(|U|^2-y)U$ has structure on sparse $y$ that
-log-multiplicative updates do not exploit. Multiplicative-momentum's
-home territory is dense grayscale, not sparse points.
+Gaussian spots). Two findings, both unscaled-PSNR: \emph{(i)~RAAR's
+apparent scaled-PSNR win is an artifact}. RAAR reaches scaled
+$52.83$~dB but only $43.28$~dB unscaled --- worse than plain GS
+($44.55$~dB) and worse than any other method tested. The $9.5$~dB
+gap is power drift hidden by the per-image rescale and would not
+survive on hardware. \emph{(ii)~Overdrive flattens at
+$\approx 45.5$~dB across all $\beta\in\{0.5,0.7,0.9,1.0\}$ and all
+warm-up lengths.} A don't-care relaxation of the zero constraint
+\cite[Eq.~318]{Bernau2012} reduces full-image PSNR monotonically with
+$\lambda$ and does not help either. The honest reading is that the
+multiplicative-momentum machinery is geometry-specific and saturates
+on sparse targets: the gradient $(|U|^2-y)U$ used by NWF has
+structure on sparse $y$ that log-multiplicative updates do not
+exploit, and NWF wins this regime at $47.22$~dB. Multiplicative
+momentum's home is dense grayscale, where it dominates by
+$\approx 4$~dB; on sparse targets it is competitive with the
+classical Prongu\'e/Bengtsson family and a useful additive-momentum
+method outperforms it.
 
 \begin{figure}[t]
   \centering

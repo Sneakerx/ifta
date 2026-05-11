@@ -166,6 +166,58 @@ def overdrive(
     return new_amp
 
 
+def overdrive_doc(
+    target_amp: np.ndarray,
+    current_amp: np.ndarray,
+    prev_virtual_amp: np.ndarray,
+    iteration: int,
+    *,
+    beta: float = 0.7,
+    doc_lambda: float = 0.6,
+    warmup: int = 3,
+    eps: float = 1e-12,
+    renormalize: bool = True,
+    **kwargs,
+) -> np.ndarray:
+    """Overdrive with a Don't-Care relaxation at target-zero pixels.
+
+    At pixels where |F| = 0 (background), the standard Overdrive rule
+    zeros the virtual amplitude. For sparse targets this is overly
+    restrictive: it forces all laser power into the few non-zero pixels
+    and inflates the synthesis floor of those spots. The dissertation
+    (Eq. 318, Sec. "Teiloptimierung mit Hilfe von Masken") proposes a
+    relaxation by a binary don't-care mask ``B`` and parameter
+    ``lambda``:
+
+        G' := G' + lambda * B * (G - G').
+
+    At B=0 (target > 0) the Overdrive rule is unchanged; at B=1
+    (target = 0) the new virtual amplitude becomes ``lambda * |G|``,
+    keeping a fraction of the current reconstruction's amplitude rather
+    than projecting to zero.
+
+    ``doc_lambda=0`` recovers the strict Overdrive rule.
+    """
+    if iteration < warmup:
+        return target_amp.copy()
+
+    safe_current = np.where(current_amp > eps, current_amp, eps)
+    strict = (
+        np.power(np.maximum(prev_virtual_amp, eps), beta)
+        * np.power(np.maximum(target_amp, eps), 2.0 - beta)
+        / safe_current
+    )
+
+    # B = 1 at zero-target pixels, 0 elsewhere
+    is_zero = target_amp <= 0
+    relaxed_zero = doc_lambda * current_amp  # the DOC value at B=1
+    new_amp = np.where(is_zero, relaxed_zero, strict)
+
+    if renormalize:
+        new_amp = _renormalize_amplitude(new_amp, target_amp)
+    return new_amp
+
+
 def overdrive_adaptive(
     target_amp: np.ndarray,
     current_amp: np.ndarray,
@@ -201,6 +253,7 @@ UPDATE_RULES: dict[str, Callable] = {
     "Fienup": fienup_amplitude,
     "Bengtsson": bengtsson,
     "Overdrive": overdrive,
+    "OverdriveDOC": overdrive_doc,
     "OverdriveAdaptive": overdrive_adaptive,
 }
 
