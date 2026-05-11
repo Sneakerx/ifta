@@ -1,0 +1,37 @@
+name: Build paper
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'paper/**'
+      - '.github/workflows/build-paper.yml'
+  pull_request:
+    paths:
+      - 'paper/**'
+      - '.github/workflows/build-paper.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Compile LaTeX
+        uses: xu-cheng/latex-action@v3
+        with:
+          root_file: overdrive_stability.tex
+          working_directory: paper
+          # latexmk auto-runs bibtex when needed; the default args are -pdf -file-line-error -halt-on-error -interaction=nonstopmode
+          args: -pdf -bibtex -file-line-error -halt-on-error -interaction=nonstopmode
+
+      - name: Upload PDF artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: overdrive_stability-pdf
+          path: paper/overdrive_stability.pdf
+          if-no-files-found: error
+          retention-days: 90
