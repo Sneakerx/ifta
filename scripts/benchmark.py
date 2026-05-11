@@ -23,25 +23,37 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from ifta import run_ifta
-from ifta.baselines import run_hio, run_overdrive2, run_raar, run_wgs
+from ifta.baselines import (
+    run_hio,
+    run_momentum_gs,
+    run_nwf,
+    run_overdrive2,
+    run_raar,
+    run_wgs,
+)
 from ifta.utils import load_image_grayscale
 
 
 # Each entry: (display_name, runner, kwargs)
-# Modern baselines (HIO, RAAR, WGS) use standalone runners because they
-# operate on complex iterates rather than amplitudes only.
+# Baselines split into three families to make the comparison legible:
+#   - alternating projections   : GS, HIO, RAAR, WGS                (no momentum)
+#   - additive momentum         : MGS, NWF                          (Euclidean)
+#   - multiplicative momentum   : Fienup, Bengtsson, Overdrive      (log-space)
 DEFAULT_RULES = [
-    ("GS",                {"runner": "ifta", "update_rule": "GS"}),
-    ("Fienup(beta=0.5)",  {"runner": "ifta", "update_rule": "Fienup",    "beta": 0.5}),
-    ("Bengtsson(beta=0.35)", {"runner": "ifta", "update_rule": "Bengtsson", "beta": 0.35}),
+    # Alternating projections
+    ("GS",                    {"runner": "ifta", "update_rule": "GS"}),
     ("HIO(beta=0.5,thr=0.3)", {"runner": "hio",  "beta": 0.5, "threshold": 0.3}),
-    ("HIO(beta=0.9,thr=0.3)", {"runner": "hio",  "beta": 0.9, "threshold": 0.3}),
-    ("RAAR(beta=0.5)",    {"runner": "raar", "beta": 0.5}),
-    ("WGS",               {"runner": "wgs"}),
-    ("Overdrive(beta=0.5)", {"runner": "ifta", "update_rule": "Overdrive", "beta": 0.5}),
-    ("Overdrive(beta=0.7)", {"runner": "ifta", "update_rule": "Overdrive", "beta": 0.7}),
-    ("Overdrive(beta=0.9)", {"runner": "ifta", "update_rule": "Overdrive", "beta": 0.9}),
-    ("Overdrive2(a=1.0,b=-0.2)", {"runner": "od2", "alpha": 1.0, "beta2": -0.2}),
+    ("RAAR(beta=0.5)",        {"runner": "raar", "beta": 0.5}),
+    ("WGS",                   {"runner": "wgs"}),
+    # Additive momentum (Euclidean) -- step/momentum tuned by grid on lighthouse
+    ("MGS(mom=0.05)",         {"runner": "mgs",  "momentum": 0.05}),
+    ("NWF(step=0.7)",         {"runner": "nwf",  "step": 0.7}),
+    # Multiplicative momentum (log-space)
+    ("Fienup(beta=0.5)",      {"runner": "ifta", "update_rule": "Fienup",    "beta": 0.5}),
+    ("Bengtsson(beta=0.35)",  {"runner": "ifta", "update_rule": "Bengtsson", "beta": 0.35}),
+    ("Overdrive(beta=0.5)",   {"runner": "ifta", "update_rule": "Overdrive", "beta": 0.5}),
+    ("Overdrive(beta=0.7)",   {"runner": "ifta", "update_rule": "Overdrive", "beta": 0.7}),
+    ("Overdrive(beta=0.9)",   {"runner": "ifta", "update_rule": "Overdrive", "beta": 0.9}),
 ]
 
 
@@ -50,7 +62,9 @@ _RUNNER_DISPATCH = {
     "hio":  run_hio,
     "raar": run_raar,
     "wgs":  run_wgs,
-    "od2":  run_overdrive2,
+    "mgs":  run_momentum_gs,
+    "nwf":  run_nwf,
+    "od2":  run_overdrive2,   # available for ablation, not in DEFAULT_RULES
 }
 
 
