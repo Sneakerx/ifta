@@ -71,75 +71,44 @@ reference Python implementation is provided.
 \section{Introduction}
 % =====================================================================
 
-Two superficially similar problems are routinely conflated in the literature.
-\emph{Phase retrieval} starts from a known intensity that arose from some
-unknown phase, and asks to recover that phase: the true solution exists by
-construction. \emph{Kinoform synthesis} \cite{Lesem1969,Soifer1997} starts
-from a desired grayscale intensity and asks to design a phase pattern,
-modulating a uniform-amplitude wave, whose Fourier transform reproduces it.
-For grayscale targets such an exact phase pattern generally does not exist:
-the constraint sets in the two planes do not intersect, the problem is
-nonconvex, many-to-one, and saturated with symmetries. Any iterative
-algorithm therefore terminates not at a true solution but at a \emph{limit
-cycle of alternating projections} whose distance to the target is the
-irreducible synthesis floor.
+\emph{Phase retrieval} recovers an unknown phase from a measured
+intensity that the unknown phase produced --- a true solution exists by
+construction. \emph{Kinoform synthesis} \cite{Lesem1969,Soifer1997}
+designs a phase pattern, modulating a uniform-amplitude wave, whose
+Fourier transform reproduces a desired grayscale intensity. For
+grayscale targets such a phase pattern generally does not exist: the
+constraint sets in the two planes do not intersect, and iterative
+algorithms therefore terminate at a limit cycle whose distance to the
+target is the irreducible \emph{synthesis floor}. The Gerchberg--Saxton
+algorithm \cite{Gerchberg1972} and its many descendants
+\cite{Fienup1978,Fienup1980,Prongue1992,Bengtsson1998,Liu2006} solve this
+synthesis problem by alternating Fourier projections and remain the
+workhorse for real-time hologram generation on phase-only spatial light
+modulators. Modern phase-retrieval methods (Wirtinger Flow
+\cite{Candes2014}, gradient descent \cite{Chen2018}) give convergence
+guarantees for the problem with a true solution; they do not transfer.
+Deep-learning approaches \cite{Zheng2021,Sun2022,Zhu2025} sidestep
+iteration at the cost of training data and dedicated hardware. For
+real-time projection on commodity hardware --- our motivating
+application --- the classical IFTA family remains attractive.
 
-This distinction matters for what one can hope to prove. The
-Gerchberg--Saxton algorithm \cite{Gerchberg1972} and its many descendants
-\cite{Fienup1978,Fienup1980,Prongue1992,Bengtsson1998,Liu2006} solve the
-kinoform synthesis problem by alternating Fourier projections and remain the
-workhorse of real-time hologram generation on phase-only spatial light
-modulators. The Hybrid Input--Output algorithm \cite{Fienup1982} adds
-input-plane feedback for phase retrieval and is the canonical extension of
-GS in that setting; the Relaxed Averaged Alternating Reflections (RAAR)
-algorithm \cite{Luke2005} replaces alternating projections with averaged
-reflections for problems with two magnitude constraints; and the Weighted GS
-algorithm \cite{DiLeonardo2007} adds a cumulative pixelwise weighting scheme
-originally designed for spot-array generation. Section~\ref{sec:numerics}
-benchmarks all three. Modern phase-retrieval methods --- Wirtinger Flow
-\cite{Candes2014} and randomly-initialized gradient descent \cite{Chen2018}
---- give global convergence guarantees, but those guarantees apply to a
-problem in which a true solution exists; they do not transfer to the kinoform
-case, where no such solution does. Deep-learning approaches
-\cite{Zheng2021,Sun2022,Zhu2025} and Camera-in-the-Loop training
-\cite{Peng2020} sidestep iteration altogether at the cost of training data
-and dedicated hardware. For real-time video projection on
-commodity hardware --- our motivating application --- the classical
-multiplicative IFTA family remains attractive: nearly as cheap as GS per
-iteration, no training, convergence in about a dozen FFT cycles. The
-question for these algorithms is therefore not ``do they reach the target?''
-(no) but ``how close to the limit cycle do they settle, and how is the
-synthesis floor controlled by the algorithm parameter?''.
-
-\paragraph{Three families of acceleration.} The classical algorithms in
-the previous paragraph split naturally into three families by where they
-inject ``memory'' between iterations.
-\begin{description}
-  \item[Alternating projections (no momentum).] GS, HIO, RAAR, and
-        weighted GS all proceed by two-plane projections; only their
-        feedback rules and (in HIO) the input-output coupling differ.
-  \item[Additive momentum (Euclidean).] Phase-domain Polyak momentum (here
-        called MGS) updates the phase by
-        $\phi_k = \phi_{k-1} + \Delta_k + \mu\,(\phi_{k-1}-\phi_{k-2})$,
-        and Nesterov-accelerated Wirtinger Flow (NWF) does the same on
-        the complex iterate after a Wirtinger gradient step. Both treat
-        the iterate as living in a Euclidean space.
-  \item[Multiplicative momentum (log-space).] The Fienup amplitude rule
-        \cite{Fienup1978}, Bengtsson rule \cite{Bengtsson1998}, and
-        Overdrive rule \cite{Bernau2007} re-impose the Fourier-plane
-        amplitude constraint by mixing the target with the current and
-        previous reconstructions through \emph{products} of amplitudes.
-        After logarithms, the mixing becomes additive in log-amplitudes
-        --- the natural mirror coordinate for non-negative quantities.
-\end{description}
-The contribution of this note is twofold. First, we show that the third
-family --- specifically the Overdrive rule --- admits a clean IIR
+\paragraph{Three families of acceleration.} The classical algorithms split
+into three families by where they inject memory between iterations:
+\emph{alternating projections} (GS, HIO \cite{Fienup1982}, RAAR
+\cite{Luke2005}, weighted GS \cite{DiLeonardo2007}), which carry no
+inter-iteration memory; \emph{additive (Euclidean) momentum}, comprising
+phase-domain Polyak momentum (here MGS) and Nesterov-accelerated
+Wirtinger Flow (NWF); and \emph{multiplicative (log-space) momentum}
+(Fienup amplitude, Bengtsson, Overdrive), in which products of past
+amplitudes become additive after logarithms --- the natural mirror
+coordinate for non-negative quantities. We show that the multiplicative
+family, specifically the Overdrive rule, admits a clean IIR
 interpretation (Section~\ref{sec:log}) and is equivalent to Polyak
 momentum in the negative-entropy mirror geometry
-(Section~\ref{sec:mirror}). Second, we benchmark all three families on a
-common image set (Section~\ref{sec:numerics}) and find that the
-multiplicative family dominates, with Overdrive at $\beta=0.7$ exceeding
-the best additive-momentum competitor (NWF) by $4.1$~dB.
+(Section~\ref{sec:mirror}). Benchmarking all three families
+(Section~\ref{sec:numerics}) shows that on natural grayscale targets
+Overdrive at $\beta=0.7$ exceeds the best additive-momentum competitor
+(NWF) by $4.1$~dB.
 
 Among the multiplicative IFTA variants, the \emph{Overdrive} rule introduced
 in \cite{Bernau2007} and analyzed empirically in \cite{Bernau2012}
@@ -267,91 +236,63 @@ correction to the next virtual amplitude.
 \section{Mirror-descent interpretation}\label{sec:mirror}
 % =====================================================================
 
-The IIR view of Section~\ref{sec:log} is signal-processing flavor. We now
-give a second, optimization-flavor derivation that arrives at the same
-update rule starting from Polyak's heavy-ball method, and explains
-\emph{why} log-amplitudes are the natural coordinates: they are the mirror
-coordinates of the negative-entropy potential on the positive orthant.
-
-\paragraph{Polyak momentum in the Euclidean setting.} For minimizing a
-smooth $f(x)$ on $\mathbb{R}^n$, Polyak's heavy ball is
+The IIR view of Section~\ref{sec:log} is signal-processing flavor; we
+now give the optimization-flavor companion. For non-negative variables on
+the positive orthant, Euclidean momentum is the wrong primitive: it leaves
+the orthant and amplifies wrong directions in the non-convex constraint
+geometry. The right primitive is \emph{mirror descent} \cite{Beck2003,
+Bubeck2015}, which performs the gradient step in the mirror coordinate
+$y=\nabla\psi(x)$. For the positive orthant the canonical mirror map is
+the negative entropy $\psi(x)=\sum_i x_i\ln x_i - x_i$, whose gradient is
+$\nabla\psi(x)=\ln x$. Adding Polyak heavy-ball momentum in the mirror
+coordinate yields
 \begin{equation}
-  x_{k+1} \;=\; x_k - \alpha\,\nabla f(x_k) + \mu\,(x_k - x_{k-1}),
+  \nabla\psi(x_{k+1}) = \nabla\psi(x_k) - \alpha\nabla f(x_k)
+                          + \mu\bigl(\nabla\psi(x_k)-\nabla\psi(x_{k-1})\bigr).
 \end{equation}
-with momentum coefficient $\mu\in[0,1)$. Its $Z$-transfer function from
-$-\alpha\nabla f$ to $x$ is a one-pole IIR filter with pole at $z=\mu$. For
-the kinoform problem the natural variable is a vector of non-negative
-amplitudes, which lives on the positive orthant rather than in
-$\mathbb{R}^n$; vanilla Euclidean heavy-ball both leaves the orthant and
-amplifies the wrong directions in the non-convex constraint geometry. The
-phase-domain heavy-ball variant of Section~\ref{sec:numerics} (MGS)
-confirms this empirically: even at small $\mu$ it underperforms plain GS.
-
-\paragraph{Mirror descent.} Mirror descent \cite{Beck2003,Bubeck2015}
-replaces the Euclidean inner product with a strictly convex
-``potential'' $\psi(x)$, performing the gradient step in the
-\emph{mirror} coordinate $y=\nabla\psi(x)$ rather than in $x$ itself:
-\begin{equation}
-  \nabla\psi(x_{k+1}) \;=\; \nabla\psi(x_k) - \alpha\,\nabla f(x_k).
-\end{equation}
-For non-negative variables on the positive orthant the canonical choice
-is the negative entropy
-\begin{equation}
-  \psi(x) \;=\; \sum_i x_i \ln x_i - x_i,
-  \qquad
-  \nabla\psi(x) \;=\; \ln x.
-\end{equation}
-Mirror descent under this potential becomes the multiplicative update
-$x_{k+1} = x_k\,e^{-\alpha\nabla f(x_k)}$, the entropic mirror descent of
-\cite{Beck2003}.
-
-\paragraph{Heavy-ball mirror descent gives Overdrive.} Adding Polyak
-momentum in the mirror coordinate gives
-\begin{equation}
-  \nabla\psi(x_{k+1}) \;=\; \nabla\psi(x_k) - \alpha\nabla f(x_k)
-                          + \mu\bigl(\nabla\psi(x_k) - \nabla\psi(x_{k-1})\bigr).
-\end{equation}
-Specializing to $\psi=$ negative entropy and rewriting in
-$x$-coordinates,
-\begin{equation}
-  \ln x_{k+1} \;=\; (1+\mu)\ln x_k - \mu\ln x_{k-1} - \alpha\nabla f(x_k),
-\end{equation}
-or equivalently
+Specialized to the negative entropy and rewritten in $x$-coordinates,
 \begin{equation}
   x_{k+1} \;=\; \frac{x_k^{\,1+\mu}}{x_{k-1}^{\,\mu}}\,e^{-\alpha\nabla f(x_k)}.
   \label{eq:mirror-heavy-ball}
 \end{equation}
-For the kinoform problem the role of $x$ is played by the virtual
-amplitude $|G_{k-1}'|$, the role of the gradient step
-$e^{-\alpha\nabla f}$ is played by the Fourier-plane correction
-$|F|/|G_k|$, and the role of $\mu$ is played by our $\beta$. Substituting
-into \eqref{eq:mirror-heavy-ball} and absorbing constants into the
-$|F|^{2-\beta}$ exponent yields
-\begin{equation}
-  |G_k'| \;=\; |G_{k-1}'|^\beta\,\frac{|F|^{\,2-\beta}}{|G_k|},
-\end{equation}
-which is the Overdrive rule \eqref{eq:overdrive}. The two key takeaways:
-\begin{enumerate}
-  \item Overdrive is the natural \emph{heavy-ball method on log-amplitudes}.
-        Its $\beta$ parameter is exactly the Polyak momentum coefficient
-        $\mu$, and the IIR pole at $z=\beta$ in Section~\ref{sec:log} is
-        the Polyak transfer-function pole.
-  \item The dimensional balance $(2-\beta)$ that made the rule's
-        fixed-point property work in Section~\ref{sec:rule} is the same
-        bookkeeping that arises from the $(1+\mu)$ vs.\ $\mu$ exponent
-        asymmetry in \eqref{eq:mirror-heavy-ball}. It is not a free
-        parameter but is dictated by the heavy-ball update.
-\end{enumerate}
+Identifying $x$ with the virtual amplitude $|G_{k-1}'|$, the
+gradient-step factor $e^{-\alpha\nabla f}$ with the Fourier-plane
+correction $|F|/|G_k|$, and $\mu$ with our $\beta$, and absorbing
+constants into the $|F|^{2-\beta}$ exponent, reduces
+\eqref{eq:mirror-heavy-ball} to the Overdrive rule \eqref{eq:overdrive}.
+Two consequences: (i)~Overdrive is the natural heavy-ball method on
+log-amplitudes, with $\beta=\mu$ and the IIR pole at $z=\beta$ identified
+as the Polyak transfer-function pole. (ii)~The dimensional balance
+$(2-\beta)$ is not a free choice but the $(1+\mu)/\mu$ exponent asymmetry
+of the heavy-ball update.
 The Bengtsson rule $|G_k'| = |G_{k-1}'|\,(|F|/|G_k|)^\beta$ corresponds in
-this framing to dropping the $|G_{k-1}'|^{(1+\mu)-1}$ exponent on the
-previous iterate; in log coordinates it reads $u_k = u_{k-1} - \beta v_k$,
-an integrator (pole at $z=1$) rather than a filter. This explains why it
-sits at the stability boundary and degrades on grayscale targets.
+this framing to omitting the heavy-ball asymmetry on $|G_{k-1}'|$; in log
+coordinates it reads $u_k = u_{k-1} - \beta v_k$, whose
+\emph{open-loop} response (treating $v_k$ as exogenous) is a discrete
+integrator with pole at $z=1$. Closing the loop through the GS step
+\eqref{eq:gs_linearization} below moves the pole to $z=1-\beta c$, which
+is strictly inside the unit disk for $\beta,c\in(0,1)$: Bengtsson is
+\emph{closed-loop stable}, just with a different pole law than Overdrive.
+What changes between the two rules is therefore the pole's dependence on
+$\beta$ at fixed $c$ --- Overdrive's $\beta-c$ admits an interior optimum
+at $\beta=c$, while Bengtsson's $1-\beta c$ is monotone in $\beta$ and
+optimized at $\beta\to 1$. The Prongu\'e variant ($\beta=1$) is the
+corresponding limit and is the right specialization for the sparse
+point-pattern application it was designed for.
 
-The mirror-descent view also identifies the natural Lyapunov candidate
-without guesswork: it is the Bregman divergence of the mirror map, which
-for negative entropy is the Itakura--Saito (or, equivalently, KL) divergence.
-We use this directly in Section~\ref{sec:lyapunov}.
+The mirror-descent view also motivates the Lyapunov candidate of
+Section~\ref{sec:lyapunov}. The Bregman divergence of the negative-entropy
+mirror map is the (unnormalized) Kullback--Leibler divergence, which on
+intensities is the Itakura--Saito divergence; this is the divergence
+guaranteed to decrease along an exact mirror-descent step. The
+log-spectral distance (LSD) used in Section~\ref{sec:lyapunov} is not this
+Bregman divergence but its quadratic local approximation: a second-order
+Taylor expansion of IS / KL around equality reduces to LSD up to a
+constant factor. LSD is the linearization-friendly local metric induced
+in log-coordinates; IS / KL is the exact multiplicative divergence the
+mirror geometry distinguishes. We use LSD because our linearization is
+quadratic in $\delta u_k$, but the underlying decrease property is
+inherited from the mirror Bregman divergence.
 
 % =====================================================================
 \section{Closed-loop stability}\label{sec:stability}
@@ -360,41 +301,45 @@ We use this directly in Section~\ref{sec:lyapunov}.
 Equation \eqref{eq:iir} treats $v_k$ as an exogenous input. In the actual
 algorithm, $v_k$ is determined by the previous virtual amplitude through the
 Fourier transform, hologram-plane phase-only constraint, and inverse Fourier
-transform --- the standard GS step. Let $\mathcal{P}_{\mathrm{GS}}$ denote
-that combined operator, restricted to amplitudes. Let $\theta^*$ be the
-algorithmic limit cycle and $\Gk_{\!\infty}=\lvert\mathcal{F}\{u\,e^{j\theta^*}\}\rvert$
-the corresponding image-plane amplitude. Define perturbations
-$\delta u_k:=u_k - u^*$ and $\delta v_k:=v_k - v^*$ around this limit cycle,
-where $v^* = \ln(\Gk_{\!\infty}/\F)$ is non-zero (the synthesis floor) and
-$u^*$ is the corresponding fixed log-perturbation of the virtual amplitude.
-The local linearization of $\mathcal{P}_{\mathrm{GS}}$ then gives
+transform --- the standard GS step. We \emph{model} the local response of
+this combined operator in log-coordinates by a scalar gain plus a stochastic
+remainder,
 \begin{equation}
   \delta v_k \;\approx\; c\,\delta u_{k-1} + \eta_k,
   \label{eq:gs_linearization}
 \end{equation}
-where $c\in[0,1]$ is the local contraction constant of $\mathcal{P}_{\mathrm{GS}}$
-at $\theta^*$ (the standard GS proof \cite{Gerchberg1972} gives $c\le 1$
-globally) and $\eta_k$ is a zero-mean stochastic term that captures the
-higher-order effect of phase re-shuffling and the residual error model from
-\cite{Bernau2012}. Substituting into \eqref{eq:iir} and noting that the
-constant offset $v^*$ cancels in the linear part,
+where $\delta u_k$ and $\delta v_k$ are perturbations around the algorithmic
+limit cycle and $\eta_k$ is a zero-mean residual that captures both phase
+re-shuffling and any deviation from a true scalar contraction. We make no
+a-priori claim about $c\in[0,1]$ from the GS contraction proof, since that
+proof bounds an $L^{2}$-amplitude contraction, not a log-amplitude scalar
+gain; we treat $c$ as a free parameter and only require it to fall in the
+stability range identified by the closed-loop analysis below, which is what
+the numerical experiments of Section~\ref{sec:numerics} support.
+Substituting \eqref{eq:gs_linearization} into \eqref{eq:iir} and noting that
+the constant offset $v^*$ cancels in the linear part,
 \begin{equation}
   \delta u_k \;=\; (\beta - c)\,\delta u_{k-1} - \eta_k.
   \label{eq:closed_loop}
 \end{equation}
-The closed-loop pole therefore sits at $z=\beta - c$. We obtain three immediate
-consequences.
+The closed-loop pole therefore sits at $z=\beta - c$. We obtain three
+consequences, the first two of which the model predicts and the
+experiments confirm; the third is the model's most easily falsifiable
+piece and is examined in Section~\ref{sec:stochastic}.
 
-\paragraph{Stability.} The iteration is stable iff
+\paragraph{Stability prediction.} The linearized iteration is stable iff
 \begin{equation}
   \lvert\beta - c\rvert < 1
   \;\Longleftrightarrow\;
   c-1 < \beta < c+1.
   \label{eq:stab}
 \end{equation}
-Since $c\in[0,1]$, every $\beta\in(0,1)$ satisfies \eqref{eq:stab}: the
-empirical observation of \cite{Bernau2012} that ``$\beta$ should be chosen
-strictly between zero and one'' is recovered as a theorem.
+For empirically observed $c\in(0,1)$, every $\beta\in(0,1)$ falls inside
+\eqref{eq:stab}, which recovers the heuristic in \cite{Bernau2012} that
+``$\beta$ should be chosen strictly between zero and one''. We
+read this as a model-based prediction that the numerical experiments of
+Section~\ref{sec:numerics} corroborate, not a theorem about the full
+nonlinear iteration.
 
 \paragraph{Locally optimal $\beta$.} The closed-loop pole $z=\beta-c$ has
 minimum modulus when
@@ -418,7 +363,7 @@ of Section~\ref{sec:stochastic}. We test both predictions in
 Section~\ref{sec:numerics}.
 
 % =====================================================================
-\section{Lyapunov function: the mirror Bregman divergence}\label{sec:lyapunov}
+\section{Lyapunov function: the log-spectral distance}\label{sec:lyapunov}
 % =====================================================================
 
 The dissertation \cite[Sec.~4.4.5]{Bernau2012} reports that the
@@ -435,118 +380,74 @@ The natural candidate is the log-spectral distance (LSD)
        \;=\; \sum v_k^2,
   \label{eq:lyap}
 \end{equation}
-quadratic in the log-amplitude residual. A closely related quantity is the
-Itakura--Saito divergence
-$\mathrm{IS}(\F^2,\Gk^2) = \sum [\F^2/\Gk^2 - \ln(\F^2/\Gk^2) - 1]$,
-which agrees with $V_k$ to second order in $v_k$ around $v_k=0$ but diverges
-from it for large residuals; both are valid Lyapunov candidates for log-domain
-multiplicative iterations. We use $V_k$ throughout because it is exactly the
-quantity our linearization is quadratic in. Decomposing $v_k=v^*+\delta v_k$
-around the limit cycle and using
-\eqref{eq:closed_loop}, the transient component decays geometrically:
+the local quadratic metric in log-coordinates. It is second-order
+equivalent to the Itakura--Saito divergence $\mathrm{IS}(\F^2,\Gk^2)$
+\cite{LeeSeung2001,Fevotte2009}, which is the Bregman divergence of the
+negative-entropy mirror map of Section~\ref{sec:mirror}; LSD is the
+linearization-friendly companion that matches the quadratic form of our
+$\delta u$ analysis. Decomposing $v_k=v^*+\delta v_k$ around the limit
+cycle, \eqref{eq:closed_loop} gives geometric transient decay of the
+fluctuation component:
 \begin{equation}
   \mathbb{E}\{(\delta v_{k+1})^2\}\big/\mathbb{E}\{(\delta v_k)^2\}
   \;\to\;(\beta-c)^2 \;<\; 1.
 \end{equation}
-The full quantity $V_k$ does \emph{not} decay to zero --- it settles at
-$V_\infty\geq 0$, the constant offset $\sum (v^*)^2$ plus the steady-state
-variance from \eqref{eq:ssresid}. The synthesis floor is precisely this
-$V_\infty$. The ``apparent paradox'' of a growing L\textsuperscript{2}
-hologram-plane correction vector is thus resolved: monotonicity holds for
-the transient part of the LSD, which is the natural metric for a
-multiplicative iteration. This is consistent with classical results in
-non-negative matrix factorization and spectral estimation, where the
-Itakura--Saito divergence is the canonical dissimilarity measure for
-multiplicative spectral updates \cite{LeeSeung2001,Fevotte2009}.
+The full quantity $V_k$ settles at $V_\infty\geq 0$: the constant
+$\sum(v^*)^2$ plus the steady-state variance of $\delta v$. This is the
+synthesis floor. The apparent paradox of a transiently growing
+L\textsuperscript{2} hologram-plane correction vector is resolved:
+monotonicity holds for the transient part of the LSD, the natural metric
+for a multiplicative iteration.
 
 % =====================================================================
 \section{The synthesis floor: hypothesis and empirical test}\label{sec:stochastic}
 % =====================================================================
 
-Because no exact phase-only kinoform exists for a generic grayscale target,
-the algorithm settles at a non-trivial limit cycle: this is the central
-quantity to characterize. If \eqref{eq:closed_loop} were a true AR(1)
-recursion with white innovation $\eta_k$, squaring and taking expectations
-would give the textbook
+If \eqref{eq:closed_loop} were an AR(1) recursion with white $\eta_k$,
+squaring and taking expectations would give the textbook
 \begin{equation}
   \mathbb{E}\{(\delta u_\infty)^2\}
     \;=\; \frac{\mathrm{Var}\{\eta\}}{1 - (\beta - c)^2},
   \label{eq:ssresid}
 \end{equation}
-the residual-variance formula for a first-order linear filter driven by
-white noise. Equation \eqref{eq:ssresid} would predict a quadratic
-sensitivity of the synthesis floor to $\beta-c$ and a global minimum at
-$\beta=c$.
-
-\paragraph{Empirical test of the AR(1) hypothesis.} We tested the
-underlying assumption directly. For each pixel of each
-test image we ran Overdrive at $\beta=0.7$ without renormalization,
-collected the trajectories of $u_k$ and $v_k$, fit an AR(1) model to the
-$u$-trajectory in the transient window, and computed the lag-$\ell$
-autocorrelation of the residuals $\hat\eta_k = u_k - \widehat{(\beta-c)}\,u_{k-1}$.
-If the model held, $\hat\eta$ should be white (autocorrelations
-$\approx 0$ at all lags). It is not: the median lag-1 autocorrelation of
-$\hat\eta$ across 10 representative images is $\approx 0.9$, with lag-2
-$\approx 0.6$ and lag-3 $\approx 0.3$. The innovation process is strongly
-colored, with a memory of roughly three iterations. A complementary sanity
-check on the $v$-trajectory --- which under AR(1) with white $\eta$ should
-have a \emph{negative} lag-1 autocorrelation of approximately
-$-\beta/(1+\beta^2)\approx -0.47$ for $\beta=0.7$ --- gives a measured
-lag-1 of $+0.8$, the wrong sign entirely.
-
-\paragraph{What this means.} The IIR pole of Section~\ref{sec:log} is
-correct by construction; it is an exact property of the update rule alone.
-The closed-loop pole and the stability bound $\lvert\beta-c\rvert<1$ are
-correct in the qualitative sense that they predict the \emph{ranking} of
-$\beta$ values on real images (see Section~\ref{sec:numerics}). But the
-quantitative closed-form floor formula \eqref{eq:ssresid} relies on an
-assumption that the empirical innovations refute. The GS step, viewed as
-the loop closure, has memory; it is not a static contraction with white
-noise.
-
-The implication for parameter selection is twofold. First, $\beta=c$
-remains a sensible heuristic --- it minimizes the closed-loop pole modulus,
-and on the test set $\beta=0.7$ does in fact yield the best PSNR.
-Second, in principle a higher-order rule whose innovations are whitened
-could lower the floor further; we tested a two-pole extension (an extra
-$|G_{k-2}'|$ term) but observed only a small gain. The empirical
-optimization landscape over $\beta$ remains unimodal and well-behaved, so
-the loss of \eqref{eq:ssresid} as a quantitative predictor is bearable in
-practice. A precise model of the colored innovations is left for future
-work.
+predicting a quadratic sensitivity of the floor to $\beta-c$ and a global
+minimum at $\beta=c$. We tested this assumption directly: for each pixel
+of each test image we ran Overdrive at $\beta=0.7$, fit AR(1) to the
+$u$-trajectory in the transient window, and measured the lag-$\ell$
+autocorrelation of the residuals $\hat\eta_k = u_k -
+\widehat{(\beta-c)}\,u_{k-1}$. The median lag-1 of $\hat\eta$ over 10
+representative images is $\approx 0.9$ (white noise would give $\approx 0$),
+with lag-2 $\approx 0.6$ and lag-3 $\approx 0.3$: the innovation process is
+strongly colored. A sanity check on the $v$-trajectory, which under
+AR(1) with white $\eta$ should give a negative lag-1 of
+$-\beta/(1+\beta^2)\approx -0.47$ for $\beta=0.7$, instead gives $+0.8$.
+The closed-form floor formula \eqref{eq:ssresid} is therefore a useful
+heuristic for ranking $\beta$ values --- $\beta=0.7$ does in fact yield
+the best PSNR on Klasse~1 in Section~\ref{sec:numerics} --- but not a
+quantitative predictor of the floor itself. A higher-order rule that
+whitens the innovations could in principle do better; we tested a
+two-pole extension with negligible gain. A precise model of the colored
+innovations is left for future work.
 
 % =====================================================================
 \section{Numerical validation}\label{sec:numerics}
 % =====================================================================
 
 We benchmark Overdrive at three values of $\beta$ against plain GS,
-Fienup--Amplitude ($\beta_{\mathrm{FA}}=0.5$), Bengtsson
-($\beta_{\mathrm{BE}}=0.35$), and three modern baselines: HIO
-\cite{Fienup1982} at the standard phase-retrieval setting
-$\beta_{\mathrm{HIO}}=0.9$ as well as a milder $\beta=0.5$, RAAR
-\cite{Luke2005} at $\beta_{\mathrm{RAAR}}=0.5$ (the best-tuned value in our
-sweep), and a pixelwise-weighted GS in the spirit of \cite{DiLeonardo2007}.
-The HIO and RAAR adaptations to the kinoform-synthesis setting follow
-standard practice: the hologram-plane constraint $|g|=u$ takes the role of
-the support constraint, with HIO triggering its feedback branch on pixels
-whose post-projection amplitude deviates from $u$ by more than $30\%$. The
-benchmark is run on 29 natural grayscale images of resolution
-$256\times 256$. The image set is the ``Klasse~1'' subset used in
-\cite{Bernau2012}, drawn from the LIVE Image Quality Assessment Database
-\cite{Sheikh2005} and converted to grayscale. All algorithms
-share the same random initial phase per image (seeded), run for 20 iterations,
-and apply the variant rule from iteration~4 onward (three GS warm-up steps).
-Implementation is in NumPy~2.4 and is released alongside this paper. We
-report PSNR in two flavors: a \emph{scaled} variant in which the reconstructed
-intensity is rescaled to match the target's total power before the error is
-computed (the convention used in the dissertation \cite{Bernau2012}), and an
-\emph{unscaled} variant that takes the reconstruction as is, reflecting what
-a physical projector would deliver. We also verified that the global Parseval
-rescale that the reference code applies after each multiplicative update is
-empirically a no-op: across all six rules and 29 images, the maximum PSNR
-difference between runs with and without the rescale is $0.013$~dB. The
-analysis of Sections~\ref{sec:rule}--\ref{sec:stochastic}, which omits the
-rescale, therefore describes the released algorithm faithfully.
+Fienup--Amplitude ($\beta=0.5$), Bengtsson ($\beta=0.35$), HIO
+\cite{Fienup1982} (best-tuned $\beta=0.5$, hologram constraint
+$|g|=u$ replacing the support set, feedback triggered above $30\%$
+deviation), RAAR \cite{Luke2005} ($\beta=0.5$), weighted GS
+\cite{DiLeonardo2007}, phase-domain Polyak (MGS, $\mu=0.05$), and
+Nesterov-accelerated Wirtinger Flow \cite{Candes2014} (NWF,
+step $0.7$). The Klasse-1 set is 29 natural grayscale images of size
+$256\times 256$, drawn from the dissertation
+\cite{Bernau2012,Sheikh2005}. All algorithms share a seeded random initial
+phase per image, run for 20 iterations, and apply the variant rule from
+iteration~4 onward (three GS warm-up steps). We report both \emph{scaled}
+PSNR (per-image total-power rescale, dissertation convention) and
+\emph{unscaled} PSNR (no rescale, reflecting what a projector would
+deliver).
 
 \begin{table}[t]
 \centering
@@ -613,64 +514,53 @@ family adds memory only across constraint sets, not across iterations, and
 that is not where the room for acceleration sits.
 
 \paragraph{The additive-momentum family.} Phase-domain Polyak momentum
-(MGS) underperforms GS at any positive momentum we tried; even at
-$\mu=0.05$ it is $\approx 1$~dB worse. The reason is the phase-wrap
-geometry: phase lives on a torus, and momentum on Euclidean differences
-across a $2\pi$ wrap repeatedly overshoots. NWF avoids this by operating
-on the complex iterate, and is the strongest non-multiplicative method
-in the benchmark with $28.26$~dB, $3.3$~dB above plain GS. NWF also has
-the lowest per-image variance ($0.83$~dB std vs.\ $1.6$--$1.8$ for the
-other methods), suggesting it is the most robust additive-momentum
-choice in this setting. Nevertheless it lags Overdrive at $\beta=0.7$
-by $4.14$~dB, consistent with the heuristic that the natural geometry
-of non-negative amplitudes is log-multiplicative, not additive Euclidean.
+(MGS) underperforms GS at any positive momentum we tried; the reason is
+the phase-wrap geometry, on which Euclidean momentum overshoots across
+$2\pi$ jumps. NWF avoids this by operating on the complex iterate, and
+is the strongest non-multiplicative method on Klasse~1 with $28.26$~dB,
+$3.32$~dB above plain GS and $0.83$~dB-std the lowest per-image variance
+of any method. It still lags Overdrive at $\beta=0.7$ by $4.14$~dB,
+consistent with the geometric prediction.
+
+\paragraph{Sparse targets (Klasse 2).} We repeated the benchmark on ten
+point-pattern images (256$\times$256, black background, $N\in[5,50]$
+Gaussian spots), the target class the classical kinoform was designed
+for \cite{Prongue1992,Bengtsson1998}. Salient unscaled-PSNR means: GS
+$44.55$, Bengtsson $45.59$, Fienup $44.99$, NWF $\mathbf{47.22}$,
+Overdrive($\beta=0.7$) $45.47$, RAAR $43.28$ (scaled $52.83$, i.e.\
+$9.5$~dB of power drift). The Overdrive advantage compresses to
+$\approx 1$~dB and the optimum in $\beta$ flattens: on sparse targets
+the dimensional-balance bookkeeping buys little over the
+$\beta\to 1$ Prongu\'e/Bengtsson limit. NWF's advantage flips here as
+the gradient $(|U|^2-y)U$ has structure on sparse $y$ that
+log-multiplicative updates do not exploit. Multiplicative-momentum's
+home territory is dense grayscale, not sparse points.
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=\linewidth]{figures/benchmark.png}
-  \caption{(left) PSNR vs.\ iteration, averaged over 29 natural grayscale
-  images; (right) log-spectral distance \eqref{eq:lyap}, the Lyapunov
-  candidate. Each curve approaches a non-zero plateau --- the kinoform
-  synthesis floor of \eqref{eq:ssresid}. The $\beta=0.7$ Overdrive curve has
-  the steepest transient slope and the lowest plateau, consistent with the
-  prediction that an interior $\beta\in(0,1)$ minimizes both the closed-loop
-  pole modulus and the steady-state floor.}
+  \includegraphics[width=\linewidth]{figures/benchmark_klasse1.png}
+  \caption{Klasse-1 natural grayscale images (29 images, mean curves).
+  (left) PSNR vs.\ iteration; (right) log-spectral distance \eqref{eq:lyap},
+  the Lyapunov candidate. Each curve approaches a non-zero plateau --- the
+  kinoform synthesis floor. Overdrive at $\beta=0.7$ (only the best of the
+  three Overdrive settings is shown for legibility) has the steepest
+  transient slope and the lowest plateau.}
   \label{fig:bench}
 \end{figure}
 
-\paragraph{Decay rates.} Figure~\ref{fig:bench} (right panel) shows the
-LSD $V_k$ versus iteration. It decays approximately geometrically, consistent
-with \eqref{eq:closed_loop}. Geometric-mean per-iteration decay factors over
-iterations $5$--$20$ are $0.890$ (GS), $0.872$ (Fienup), $0.929$ (Bengtsson),
-$0.829$ ($\beta=0.5$), $\mathbf{0.809}$ ($\beta=0.7$), and $0.857$
-($\beta=0.9$). The fastest decay is achieved at the $\beta$ that gives the
-highest final PSNR, in agreement with the qualitative prediction
-$\beta^{*}\approx c$. The absolute values of the implied $\lvert\beta-c\rvert$
-are larger than the linearization \eqref{eq:gs_linearization} predicts; we
-attribute this to the noise term $\eta_k$, which is non-negligible for natural
-images and dominates the steady-state residual via \eqref{eq:ssresid}. The
-linearization is therefore a useful guide to the \emph{ranking} of $\beta$
-values rather than a quantitative predictor of absolute decay rate.
+\paragraph{Decay rates.} Geometric-mean per-iteration decay factors of
+$V_k$ over iterations $5$--$20$ are $0.89$ (GS), $0.87$ (Fienup), $0.93$
+(Bengtsson), $0.83$ (Overdrive $\beta=0.5$), $\mathbf{0.81}$
+($\beta=0.7$), $0.86$ ($\beta=0.9$). The fastest decay coincides with the
+highest final PSNR, in agreement with $\beta^*\approx c$.
 
-\paragraph{Adaptive $\beta$ and the limits of online estimation.} Setting
-$\beta^*=c$ requires an estimate of $c$. A natural attempt is to read it off
-the LSD trajectory, since $V_k$ decays geometrically with rate $(\beta-c)^2$
-during the transient. The released code ({\tt ifta.adaptive}) implements
-this and we validate it on synthetic AR(1) trajectories with known
-$(\beta,c)$. Two regimes emerge. (i) During the transient, with sufficient
-asymmetry between $\beta$ and $c$ (e.g.\ $\beta=0.3$, $c\!\geq\!0.5$), the
-estimator recovers $c$ with mean absolute error around $0.2$--$0.3$.
-(ii) Near steady state, all such estimators saturate at $V_k/V_{k-1}\!\to\!1$
-because $V_k$ does not decay below the floor $V_\infty$; recovering $c$ from
-$V_k$ alone is fundamentally impossible once the iteration has converged.
-A second, more subtle obstruction is branch ambiguity: $h_k$ depends on
-$|\beta-c|$, so $c=\beta\pm|\beta-c|$ are observationally equivalent and
-cannot be disambiguated from LSD history alone. For $\beta\!\approx\!0.5$
-both branches lie in $[0,1]$ and the estimator must rely on a prior or on
-sign information from the unsquared residual, neither of which the LSD
-provides. We conclude that online estimation of $c$ is feasible during the
-transient phase and useful as a coarse warm-start, but a fixed $\beta$ near
-$c$ from offline calibration is more reliable in practice.
+\paragraph{Adaptive $\beta$.} Setting $\beta^*=c$ requires an estimate of
+$c$. The released code ({\tt ifta.adaptive}) reads it from the geometric
+decay rate of $V_k$ during the transient, with a sign disambiguation step.
+On synthetic AR(1) trajectories with sufficient $|\beta-c|$ asymmetry the
+estimator recovers $c$ to within $0.2$--$0.3$; near the floor it saturates
+because $V_k$ ceases to decay. A fixed $\beta$ from offline calibration is
+more reliable in practice.
 
 % =====================================================================
 \section{Discussion}\label{sec:discussion}
@@ -694,82 +584,42 @@ left to future work. The Prongu\'e rule \cite{Prongue1992} is the special
 case $\beta=1$ of Overdrive and lies on the stability boundary; it works for
 sparse point patterns but degrades on grayscale images.
 
-\paragraph{A different problem: phase retrieval.} Wirtinger Flow
-\cite{Candes2014} and randomly initialized gradient descent \cite{Chen2018}
-provide global convergence guarantees for the non-convex \emph{phase
-retrieval} problem, in which a true unknown signal generated the observed
-intensity. Their guarantees rely critically on the existence of that true
-signal and on assumptions on the measurement matrix (Gaussian, coded
-diffraction). They do not transfer to kinoform synthesis, where no
-phase-only solution exists in general; what those algorithms would
-``recover'' is the closest approximate signal under their loss, which is a
-different quantity from the limit cycle of an alternating-projection
-scheme. The two literatures should not be conflated.
-
-\paragraph{A different paradigm: deep learning.} Convolutional and
-transformer-based phase generators \cite{Zheng2021,Sun2022,Zhu2025} achieve
-near-real-time performance by replacing iteration with one trained network
-inference. They are class-specific (the network must be trained on a
-distribution that resembles the target images) and require dedicated
-hardware. They sidestep rather than solve the analytical question studied
-here: \emph{how does the synthesis floor of a classical iterative
-algorithm depend on its parameters?}.
-
-\paragraph{A different problem statement: Camera-in-the-Loop.} Camera-in-the-Loop
-GS \cite{Peng2020} closes the gap between a physical SLM and the idealized
-forward model by replacing simulated propagation with measurements from a
-camera during training. In a sim-only benchmark such as ours the camera step
-is the identity, so CITL reduces to plain GS; including it as a baseline
-would be misleading. CITL is the right comparison for hardware deployment
-on a specific SLM, not for the parameter-dependence question studied here.
-We expect CITL training to compose with Overdrive as a drop-in update rule
-on the simulation side; verifying this composition is left to future work.
-
-\paragraph{The role of the dimensional balance.} The exponent $2-\beta$ in
-\eqref{eq:overdrive} serves two purposes. First, it ensures that an exact
-target $\Gk=\F$ would be a fixed point of the iteration (Section~\ref{sec:rule}),
-which is what makes the log-domain residuals $u_k,v_k$ vanish at a hypothetical
-zero-residual limit. Second, it produces a closed-loop pole that depends on
-$\beta-c$ rather than on the steeper $1-\beta c$ slope of Bengtsson, so that
-the optimum $\beta^*=c$ falls in the interior of $(0,1)$ and the noise gain
-is unity rather than $\beta$. Whether this translates to a smaller absolute
-floor than Bengtsson depends on the (rule-dependent) noise variance, and is
-an empirical question --- see Section~\ref{sec:numerics}.
+\paragraph{Adjacent literatures.} Wirtinger Flow \cite{Candes2014} and
+randomly initialized gradient descent \cite{Chen2018} are global
+convergence guarantees for phase retrieval, where a true unknown signal
+exists; they do not transfer to kinoform synthesis. Deep-learning phase
+generators \cite{Zheng2021,Sun2022,Zhu2025} sidestep iteration at the cost
+of training data and dedicated hardware, and answer a different question
+than the one studied here. Camera-in-the-Loop GS \cite{Peng2020} addresses
+the sim-to-hardware gap and reduces to GS in our sim-only benchmark; we
+expect it to compose with Overdrive as a drop-in update rule.
 
 \paragraph{Limitations.} The linearization \eqref{eq:gs_linearization}
-captures only the local behaviour of the GS projection at the limit cycle;
-far from it, $c$ varies and the analysis is only approximate. The
-quantitative agreement of \eqref{eq:ssresid} with the numerical residuals
-(Section~\ref{sec:numerics}) is therefore a useful guide to the \emph{ranking}
-of $\beta$ values rather than to absolute floor prediction.
+captures only local behaviour at the limit cycle, and the colored
+innovations of Section~\ref{sec:stochastic} mean \eqref{eq:ssresid} is a
+ranking heuristic, not a quantitative floor predictor.
 
 % =====================================================================
 \section{Conclusion}\label{sec:conclusion}
 % =====================================================================
 
-Kinoform synthesis is an approximation problem on the positive orthant of
-non-negative amplitudes; its iterative algorithms terminate at a limit
-cycle whose distance to the target is the irreducible synthesis floor.
-Acceleration with classical Euclidean momentum --- on the phase, on the
-gradient of a Wirtinger loss, or on additive correction vectors --- yields
-modest gains at best, because the iterate's natural geometry is not
-Euclidean. The Overdrive update rule, in retrospect, is Polyak heavy-ball
-momentum applied in the negative-entropy mirror geometry, with $\beta$
-playing the role of the Polyak momentum coefficient. In log-amplitude
-coordinates the rule is a first-order IIR filter with pole at $z=\beta$,
-exact by construction; closing the loop through the GS projection moves the
-pole to $z=\beta-c$, qualitatively predicting an interior optimum at
-$\beta\approx c$. The L\textsuperscript{2} hologram-plane error is not the
-right Lyapunov function for this rule --- the log-spectral distance (the
-Bregman divergence of the mirror map) is. The AR(1)-with-white-noise
-closed-loop model that would give a closed-form synthesis floor is
-empirically refuted by an autocorrelation test on the innovations; the
-linearization is informative for ranking $\beta$ values but not as a
-quantitative floor predictor. On 29 natural grayscale images, Overdrive at
-$\beta=0.7$ reaches a mean PSNR of $32.4$~dB after twenty iterations,
-exceeding plain GS by $7.5$~dB, all three alternating-projection baselines
-(HIO, RAAR, WGS) by at least $6.9$~dB, and Nesterov-accelerated Wirtinger
-Flow --- the natural additive-momentum competitor --- by $4.1$~dB.
+Kinoform synthesis is an approximation problem on the positive orthant.
+Classical Euclidean momentum --- on the phase or on the complex gradient
+of a Wirtinger loss --- yields modest gains; the iterate's natural geometry
+is multiplicative, not Euclidean. The Overdrive rule is Polyak heavy-ball
+momentum in the negative-entropy mirror geometry, with $\beta$ as the
+momentum coefficient; in log-amplitudes it is a first-order IIR filter
+with pole at $z=\beta$, and closing the loop predicts a closed-loop pole
+at $z=\beta-c$. The log-spectral distance, locally equivalent to the
+Itakura--Saito divergence of the mirror map, is the natural Lyapunov
+candidate; the AR(1)-with-white-noise model that would yield a closed-form
+floor is empirically refuted but qualitatively predictive. On 29 natural
+grayscale images Overdrive at $\beta=0.7$ reaches $32.4$~dB after twenty
+iterations, exceeding GS by $7.5$~dB and the best additive-momentum
+competitor (NWF) by $4.1$~dB. On sparse point patterns the advantage of
+multiplicative momentum compresses to $\approx 1$~dB --- consistent with
+the classical observation that the Prongu\'e/Bengtsson family was designed
+for that regime.
 
 \paragraph{Code and data availability.} A reference Python implementation of
 all algorithms discussed, together with the benchmark scripts and image set

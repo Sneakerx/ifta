@@ -198,10 +198,25 @@ def main() -> int:
     print(f"Wrote {curves_path}")
 
     # --- Plot averaged convergence curves
+    # For legibility, show only one Overdrive curve (beta=0.7) and drop the
+    # extreme HIO setting; full numbers remain in summary.csv.
+    PLOT_INCLUDE = {
+        "GS",
+        "HIO(beta=0.5,thr=0.3)",
+        "RAAR(beta=0.5)",
+        "WGS",
+        "MGS(mom=0.05)",
+        "NWF(step=0.7)",
+        "Fienup(beta=0.5)",
+        "Bengtsson(beta=0.35)",
+        "Overdrive(beta=0.7)",
+    }
+    LOGSPEC_FLOOR = 1e-6  # clip near-degenerate values so RAAR doesn't dominate
+
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4))
     iters = np.arange(1, args.iterations + 1)
     for label, curves in curves_psnr.items():
-        if not curves:
+        if not curves or label not in PLOT_INCLUDE:
             continue
         arr = np.asarray(curves)
         mean = arr.mean(axis=0)
@@ -213,14 +228,15 @@ def main() -> int:
     ax1.legend(fontsize=8)
 
     for label, curves in curves_logspec.items():
-        if not curves:
+        if not curves or label not in PLOT_INCLUDE:
             continue
         arr = np.asarray(curves)
-        mean = arr.mean(axis=0)
+        mean = np.maximum(arr.mean(axis=0), LOGSPEC_FLOOR)
         ax2.semilogy(iters, mean, label=label, lw=1.5)
     ax2.set_xlabel("iteration")
     ax2.set_ylabel("log-spectral residual (mean of $\\log^2$)")
     ax2.set_title("Lyapunov candidate")
+    ax2.set_ylim(bottom=LOGSPEC_FLOOR / 2)
     ax2.grid(True, alpha=0.3, which="both")
     ax2.legend(fontsize=8)
 
